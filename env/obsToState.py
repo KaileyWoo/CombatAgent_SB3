@@ -43,7 +43,7 @@ class ObsToState:
         next_sparse_reward, next_potential_reward = self.getReward(next_self_track, next_DetectedInfo, False)
 
         # reward function
-        self.CurTotalReward = cur_sparse_reward + 0.99*next_potential_reward - self.CurPotentialReward# + 0.001*math.tanh(-self.CurTime / 300)
+        self.CurTotalReward = cur_sparse_reward + 0.99*next_potential_reward - self.CurPotentialReward # + 0.001*math.tanh(-self.CurTime / 300)
         # termination probability
         terminate_prob = self.CurPotentialReward
         if terminate_prob < 0:

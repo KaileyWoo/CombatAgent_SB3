@@ -1,7 +1,7 @@
 import os
 
-# learning_rate = 5e-4      # learning rate for adam optimizer
-learning_rate = 9e-4
+learning_rate = 5e-4      # learning rate for adam optimizer
+#learning_rate = 9e-4
 buffer_size = int(1e6)    # size of the replay buffer
 batch_size = 256          # Minibatch size for each gradient update
 tau = 0.005               # (float) – the soft update coefficient (“Polyak update”, between 0 and 1)
@@ -12,13 +12,13 @@ max_episodes=int(1e5)     # (int) – Maximum number of episodes to run
 
 StateDim = (42, )  # 状态维度
 ActionDim = (4, )   # 动作维度
-Train = 1      # 0，1，2分别表示：0重新训练，1加载之前的训练，2测试模式
+Train = 0      # 0，1，2分别表示：0重新训练，1加载之前的训练，2测试模式
 
 
 class FolderPath:
     def __init__(self):
         # Red
-        save_date = '2023_07_09'
+        save_date = '2023_07_10'
         load_date = '2023_07_06'
         model_name = "sac_model_3600000_steps.zip"
         self.Save_ModelDir_Red = "./models/Red/"+save_date+"/sac_checkpoints/"
