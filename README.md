@@ -1,1 +1,1 @@
-# CombatRed
+# CombatAgent_SB3 project is developed using Stable Baselines3.
