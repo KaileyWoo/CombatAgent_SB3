@@ -63,7 +63,7 @@ class ObsToState:
             self.CurTotalReward += terminal_reward
             self.TotalReward += self.CurTotalReward
             print("--------------------------------------------------------目标达成！---------------------------------------------------------------------")
-            print("本局时间: ", self.CurTime, ", TotalReward=", self.TotalReward)
+            print("本局时间: ", self.CurTime, ", TotalReward=", self.TotalReward, ", terminate_prob", terminate_prob)
             print(", 高度:", cur_self_info['Altitude'], ", distance=", self.CurDistance,
                   ", attackAngle=", self.CurAttackAngle*180/math.pi, ", escapeAngle=", self.CurEscapeAngle*180/math.pi)
 
@@ -134,8 +134,11 @@ class ObsToState:
     def getOneFrameState(self, self_track, detectedInfo):
         # 提取1帧观测数据
         # 经纬度差[-180,180]、[-90,90]
-        lon_diff = (detectedInfo['Longitude'] - self_track['Longitude']) / 180.0
-        lat_diff = (detectedInfo['Latitude'] - self_track['Latitude']) / 90.0
+        lon_diff = math.fabs(detectedInfo['Longitude'] - self_track['Longitude'])
+        if lon_diff > 180:
+            lon_diff = 360 - lon_diff
+        lon_diff = lon_diff / 180.0
+        lat_diff = math.fabs(detectedInfo['Latitude'] - self_track['Latitude']) / 90.0
         # 高度
         self_alt = self_track['Altitude'] / self.ALT_Max
         dete_alt = detectedInfo['Altitude'] / self.ALT_Max
@@ -146,7 +149,7 @@ class ObsToState:
         # 速度差[0, 600]
         self_v_real = RongAoUtils.getSpeed(self_track)
         dete_v_real = RongAoUtils.getSpeed(detectedInfo)
-        v_diff = (dete_v_real - self_v_real) / 600.0
+        v_diff = (self_v_real - dete_v_real) / 600.0
         # 偏航[0, 2*pi]、俯仰[-pi/2, pi/2]、滚转[-pi, pi]
         self_heading = self_track['Heading'] / (2 * math.pi)
         self_pitch = self_track['Pitch'] / (math.pi / 2)

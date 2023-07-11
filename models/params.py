@@ -19,8 +19,8 @@ class FolderPath:
     def __init__(self):
         # Red
         save_date = '2023_07_11'
-        load_date = '2023_07_10'
-        model_name = "sac_model_2000000_steps.zip"
+        load_date = '2023_07_11'
+        model_name = "sac_model_800000_steps.zip"
         self.Save_ModelDir_Red = "./models/Red/"+save_date+"/sac_checkpoints/"
         self.Load_ModelDir_Red = "./models/Red/"+load_date+"/sac_checkpoints/"+model_name
         # self.LogDir_Red = "./logs/Red/"+save_date+"/sac_tensorboard/"
