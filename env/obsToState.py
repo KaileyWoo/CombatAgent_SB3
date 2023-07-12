@@ -18,6 +18,7 @@ class ObsToState:
         self.ALT_Min = 1000
         self.ALT_Max = 10000
         self.TotalReward = 0
+        self.episode = 1
 
     # 获得状态奖励结束标志
     def getStateRewardDone(self, first_info, second_info, third_info, time):
@@ -63,7 +64,7 @@ class ObsToState:
             self.CurTotalReward += terminal_reward
             self.TotalReward += self.CurTotalReward
             print("--------------------------------------------------------目标达成！---------------------------------------------------------------------")
-            print("本局时间: ", self.CurTime, ", TotalReward=", self.TotalReward, ", terminate_prob", terminate_prob)
+            print("第", self.episode, "局结束， 时间: ", self.CurTime, ", TotalReward=", self.TotalReward, ", terminate_prob", terminate_prob)
             print(", 高度:", cur_self_info['Altitude'], ", distance=", self.CurDistance,
                   ", attackAngle=", self.CurAttackAngle*180/math.pi, ", escapeAngle=", self.CurEscapeAngle*180/math.pi)
 
@@ -72,7 +73,7 @@ class ObsToState:
             terminal_reward = -50 + math.tanh(-math.fabs(self.CurAttackAngle) / math.pi)
             self.CurTotalReward += terminal_reward
             self.TotalReward += self.CurTotalReward
-            print("超出最大距离范围，结束  时间: ", self.CurTime, ", TotalReward=", self.TotalReward, ", CurAttackAngle=",
+            print("第", self.episode, "局结束，超出最大距离范围，时间: ", self.CurTime, ", TotalReward=", self.TotalReward, ", CurAttackAngle=",
                   self.CurAttackAngle * 180 / math.pi)
 
         elif cur_self_info['Altitude'] > self.ALT_Max or cur_self_info['Altitude'] < self.ALT_Min:
@@ -80,17 +81,18 @@ class ObsToState:
             terminal_reward = -40 + math.tanh((self.WEZ_Min - self.CurDistance) / self.Distance_Max)
             self.CurTotalReward += terminal_reward
             self.TotalReward += self.CurTotalReward
-            print("高度越界，结束  时间: ", self.CurTime, ", TotalReward=", self.TotalReward, ", distance=", self.CurDistance)
+            print("第", self.episode, "局结束，高度越界，时间: ", self.CurTime, ", TotalReward=", self.TotalReward, ", distance=", self.CurDistance)
 
         elif self.CurTime > 299:
             self.isDone = 3
             terminal_reward = -30 + math.tanh((self.WEZ_Min - self.CurDistance) / self.Distance_Max)
             self.CurTotalReward += terminal_reward
             self.TotalReward += self.CurTotalReward
-            print("---超时---，", "TotalReward=", self.TotalReward, ", distance=", self.CurDistance)
+            print("第", self.episode, "局结束，---超时---，", "TotalReward=", self.TotalReward, ", distance=", self.CurDistance)
 
         if self.isDone != 0:
             self.TotalReward = 0
+            self.episode += 1
 
     # 计算奖励
     def getReward(self, self_info, dete_info, curFlag=False):
