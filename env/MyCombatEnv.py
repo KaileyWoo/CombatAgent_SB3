@@ -3,6 +3,7 @@ import numpy as np
 import socket
 import struct
 import json
+import types
 
 from models.params import StateDim, ActionDim
 from env.obsToState import ObsToState
@@ -32,8 +33,8 @@ class MyCombatEnv(gym.Env):
             "msg_type": "identify",
             "msg_info": {
                 "identify": "red"}}
-        self.manu_ctrl = {
-            "msg_info": "驾驶操控,1001,2,0,Delay,Force,0|0`0`0.8`0",
+        self.cur_manu_ctrl = {
+            "msg_info": "驾驶操控,1001,2,0,Delay,Force,0|0`0`0.6`0",
             "msg_type": "manu_ctrl",
             "done": "0"}  # 是否结束战斗并附带原因[0-未结束 1-本方胜 2-敌方胜[本机摔或高度过低] 3-时间到]
         # self.manu_ctrl_launch = {
@@ -44,7 +45,6 @@ class MyCombatEnv(gym.Env):
         self.role = role
         self.id = role_id
         self.rcv_msg = bytes()  # 缓存接收到的报文
-        self.cur_manu_ctrl = self.manu_ctrl
         self.CurTime = 0
         self.PreTime = 0
         self.msg_type = None
@@ -76,41 +76,40 @@ class MyCombatEnv(gym.Env):
         self.cur_manu_ctrl = RongAoUtils.moveRL(self.cur_manu_ctrl, self.id, action[0], action[1], action[2], action[3])
         self.cur_manu_ctrl["done"] = self.isDone  # 结束标志
         self.sendMsg(self.cur_manu_ctrl)
-        # 更新数据信息
-        self.secondFrameTime = self.CurTime
-        # 接收环境信息
-        self.receiveMsg()
-        self.firstFrameInfo = self.secondFrameInfo
-        self.secondFrameInfo = self.thirdFrameInfo
-        self.thirdFrameInfo = self.nowInfo
-        if self.msg_type == "result":
-            print("已收到对局结束指令!")
-            terminated = True
-        elif self.role == "red" and self.msg_type == "red_out_put" or self.role == "blue" and self.msg_type == "blue_out_put":
-            self.getStateReward()
+        if self.isDone != 0:
             observation = self.latest_observation
             reward = self.latest_reward
-            if self.isDone != 0:
-                # 发送动作指令
-                self.cur_manu_ctrl = RongAoUtils.moveRL(self.cur_manu_ctrl, self.id, action[0], action[1], action[2], action[3])
-                self.cur_manu_ctrl["done"] = self.isDone  # 结束标志
-                self.sendMsg(self.cur_manu_ctrl)
-                terminated = True
-                # if self.isDone == 3:
-                #     truncated = True
-                # else:
-                #     terminated = True
+            terminated = True
         else:
-            print("接收到不明信息!")
-            truncated = True
+            # 更新数据信息
+            self.secondFrameTime = self.CurTime
+            # 接收环境信息
+            self.receiveMsg()
+            self.firstFrameInfo = self.secondFrameInfo
+            self.secondFrameInfo = self.thirdFrameInfo
+            self.thirdFrameInfo = self.nowInfo
+            if self.msg_type == "result":
+                print("已收到对局结束指令!")
+                terminated = True
+            elif self.role == "red" and self.msg_type == "red_out_put" or self.role == "blue" and self.msg_type == "blue_out_put":
+                self.getStateReward()
+                observation = self.latest_observation
+                reward = self.latest_reward
+            else:
+                print("接收到不明信息!")
+                truncated = True
+
         info = self._get_info()
         return observation, reward, terminated, truncated, info
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         # 重置环境
+        self.cur_manu_ctrl = {
+            "msg_info": "驾驶操控,1001,2,0,Delay,Force,0|0`0`0.6`0",
+            "msg_type": "manu_ctrl",
+            "done": "0"}
         self.rcv_msg = bytes()
-        self.cur_manu_ctrl = self.manu_ctrl
         self.CurTime = 0
         self.PreTime = 0
         self.msg_type = None

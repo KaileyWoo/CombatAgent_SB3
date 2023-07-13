@@ -18,13 +18,13 @@ Train = 1      # 0，1，2分别表示：0重新训练，1加载之前的训练�
 class FolderPath:
     def __init__(self):
         # Red
-        save_date = '2023_07_11'
-        load_date = '2023_07_11'
-        model_name = "sac_model_800000_steps.zip"
+        save_date = '2023_07_13'
+        load_date = '2023_07_12'
+        model_name = "sac_model_1600000_steps.zip"
         self.Save_ModelDir_Red = "./models/Red/"+save_date+"/sac_checkpoints/"
         self.Load_ModelDir_Red = "./models/Red/"+load_date+"/sac_checkpoints/"+model_name
         # self.LogDir_Red = "./logs/Red/"+save_date+"/sac_tensorboard/"
-        self.LogDir_Red = "./logs/Red/"+save_date+"/"
+        self.LogDir_Red = "./logs/Red/"+save_date
         # Blue
         # self.Save_ModelDir_Blue = "./models/Blue/"+save_date+"/sac_checkpoints/"
         # self.Load_ModelDir_Blue = "./models/Blue/"+load_date+"/sac_checkpoints/"+model_name
@@ -35,7 +35,7 @@ class FolderPath:
     def create_folders(self):
         if not os.path.exists(self.Save_ModelDir_Red):
             os.makedirs(self.Save_ModelDir_Red)
-        if not os.path.exists(self.Load_ModelDir_Red):
+        if not os.path.exists(self.Load_ModelDir_Red) and Train != 0:
             print("加载模型路径错误！ 路径：" + self.Load_ModelDir_Red)
         if not os.path.exists(self.LogDir_Red):
             os.makedirs(self.LogDir_Red)

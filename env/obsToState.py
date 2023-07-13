@@ -78,17 +78,22 @@ class ObsToState:
 
         elif cur_self_info['Altitude'] > self.ALT_Max or cur_self_info['Altitude'] < self.ALT_Min:
             self.isDone = 2
-            terminal_reward = -40 + math.tanh((self.WEZ_Min - self.CurDistance) / self.Distance_Max)
+            #terminal_reward = -40 + math.tanh((self.WEZ_Min - self.CurDistance) / self.Distance_Max)
+            terminal_reward = -50 + math.tanh(-math.fabs(self.CurAttackAngle) / math.pi)
             self.CurTotalReward += terminal_reward
             self.TotalReward += self.CurTotalReward
-            print("第", self.episode, "局结束，高度越界，时间: ", self.CurTime, ", TotalReward=", self.TotalReward, ", distance=", self.CurDistance)
+            print("第", self.episode, "局结束，高度越界，时间: ", self.CurTime, ", TotalReward=", self.TotalReward,
+                  ", CurAttackAngle=", self.CurAttackAngle * 180 / math.pi, ", distance=", self.CurDistance)
 
         elif self.CurTime > 299:
             self.isDone = 3
-            terminal_reward = -30 + math.tanh((self.WEZ_Min - self.CurDistance) / self.Distance_Max)
+            #terminal_reward = -30 + math.tanh((self.WEZ_Min - self.CurDistance) / self.Distance_Max)
+            terminal_reward = -40 + math.tanh(-math.fabs(self.CurAttackAngle) / math.pi) + \
+                              math.tanh((self.WEZ_Min - self.CurDistance) / self.Distance_Max)
             self.CurTotalReward += terminal_reward
             self.TotalReward += self.CurTotalReward
-            print("第", self.episode, "局结束，---超时---，", "TotalReward=", self.TotalReward, ", distance=", self.CurDistance)
+            print("第", self.episode, "局结束，---超时---，", "TotalReward=", self.TotalReward,
+                  ", CurAttackAngle=", self.CurAttackAngle * 180 / math.pi, ", distance=", self.CurDistance)
 
         if self.isDone != 0:
             self.TotalReward = 0

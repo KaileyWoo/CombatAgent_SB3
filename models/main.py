@@ -18,8 +18,8 @@ def main(role='red', role_id='1001'):
         saveDir = folderPath.Save_ModelDir_Blue
         loadDir = folderPath.Load_ModelDir_Blue
         logDir = folderPath.LogDir_Blue
-    tensorboardDir = logDir+'sac_tensorboard/'
-    monitorDir = logDir+'sac_monitor/'
+    tensorboardDir = logDir+'/sac_tensorboard/'
+    monitorDir = logDir+'/sac_monitor/'
     # 创建环境
     env = gym.make('MyCombatEnv-v0', role=role, role_id=role_id)
     env = Monitor(env, monitorDir, allow_early_resets=True, override_existing=False)
@@ -28,8 +28,8 @@ def main(role='red', role_id='1001'):
     model = SAC('MlpPolicy', env, verbose=0, device='cuda', tensorboard_log=tensorboardDir,
                 batch_size=batch_size, learning_rate=learning_rate, buffer_size=buffer_size)
     # 定义回调函数
-    checkpoint_callback = CheckpointCallback(save_freq=policy_interval, save_path=saveDir, name_prefix='sac_model')
-                                             # save_replay_buffer=True, save_vecnormalize=True)
+    checkpoint_callback = CheckpointCallback(save_freq=policy_interval, save_path=saveDir, name_prefix='sac_model',
+                                              save_replay_buffer=True, save_vecnormalize=True)
     #callback_max_episodes = StopTrainingOnMaxEpisodes(max_episodes=max_episodes, verbose=1)
     callback = [checkpoint_callback, MyCallback()]
     # 训练或测试模型
@@ -42,11 +42,9 @@ def main(role='red', role_id='1001'):
         model.learn(total_timesteps=total_timesteps, callback=callback, progress_bar=True)
     else:
         print("测试模型......")
-        obs, info = env.reset()
-        for step in range(100):
+        obs = env.reset()
+        for step in range(1000000):
             action, _states = model.predict(obs, deterministic=True)
-            print("Step {}".format(step + 1))
-            obs, reward, terminated, truncated, info = env.step(action)
-            print('obs=', obs, '\n reward=', reward, '  done=', terminated or truncated)
-            if terminated or truncated:
-                obs, info = env.reset()
+            obs, reward, terminated, info = env.step(action)
+            # if terminated:
+            #     obs = env.reset()
