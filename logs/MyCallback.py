@@ -1,5 +1,6 @@
+import gym
 from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.logger import HParam
+import gymnasium as gym
 
 
 class MyCallback(BaseCallback):
@@ -7,8 +8,11 @@ class MyCallback(BaseCallback):
     A custom callback that derives from ``BaseCallback``.
     :param verbose: Verbosity level: 0 for no output, 1 for info messages, 2 for debug messages
     """
-    def __init__(self, verbose=0):
+    def __init__(self, env=gym.Env, eval_freq=10000, verbose=0):
         super(MyCallback, self).__init__(verbose)
+
+        self.env = env.envs[0]
+        self.eval_freq = eval_freq
 
 
     def _on_training_start(self) -> None:
@@ -34,9 +38,12 @@ class MyCallback(BaseCallback):
 
         :return: (bool) If the callback returns False, training is aborted early.
         """
-        infos = self.locals["infos"][0]
+        # infos = self.locals["infos"][0]
         # self.logger.record("total_rewards", infos["reward"])
         # self.logger.record("potential_reward", infos["potential_reward"])
+
+        if self.eval_freq > 0 and self.n_calls % self.eval_freq == 0:
+            self.env.set_isEvaluate(True)
 
         return True
 

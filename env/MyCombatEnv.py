@@ -5,7 +5,7 @@ import struct
 import json
 import types
 
-from models.params import StateDim, ActionDim
+from models.params import StateDim, ActionDim, n_eval_episodes
 from env.obsToState import ObsToState
 from utils.RongAoUtils import RongAoUtils
 
@@ -60,6 +60,8 @@ class MyCombatEnv(gym.Env):
         self.potential_reward = 0
         self.isDone = 0
         self.obsToState = ObsToState()
+        self.isEvaluate = False
+        self.num_eval = 0
         # 初始化环境交互类信息
         self.sendMsg(self.Red_identify_dict)
 
@@ -76,34 +78,47 @@ class MyCombatEnv(gym.Env):
         self.cur_manu_ctrl = RongAoUtils.moveRL(self.cur_manu_ctrl, self.id, action[0], action[1], action[2], action[3])
         self.cur_manu_ctrl["done"] = self.isDone  # 结束标志
         self.sendMsg(self.cur_manu_ctrl)
-        if self.isDone != 0:
+
+        # 更新数据信息,接收环境信息
+        self.secondFrameTime = self.CurTime
+        self.receiveMsg()
+        self.firstFrameInfo = self.secondFrameInfo
+        self.secondFrameInfo = self.thirdFrameInfo
+        self.thirdFrameInfo = self.nowInfo
+        if self.msg_type == "result":
+            print("已收到对局结束指令!")
+            terminated = True
+        elif self.role == "red" and self.msg_type == "red_out_put" or self.role == "blue" and self.msg_type == "blue_out_put":
+            self.getStateReward()
             observation = self.latest_observation
             reward = self.latest_reward
-            terminated = True
-        else:
-            # 更新数据信息
-            self.secondFrameTime = self.CurTime
-            # 接收环境信息
-            self.receiveMsg()
-            self.firstFrameInfo = self.secondFrameInfo
-            self.secondFrameInfo = self.thirdFrameInfo
-            self.thirdFrameInfo = self.nowInfo
-            if self.msg_type == "result":
-                print("已收到对局结束指令!")
+            if self.isDone != 0:
+                self.cur_manu_ctrl["done"] = self.isDone  # 结束标志
+                self.sendMsg(self.cur_manu_ctrl)
                 terminated = True
-            elif self.role == "red" and self.msg_type == "red_out_put" or self.role == "blue" and self.msg_type == "blue_out_put":
-                self.getStateReward()
-                observation = self.latest_observation
-                reward = self.latest_reward
-            else:
-                print("接收到不明信息!")
-                truncated = True
+        else:
+            print("接收到不明信息!")
+            truncated = True
 
         info = self._get_info()
         return observation, reward, terminated, truncated, info
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
+        # 验证评估
+        if self.isEvaluate and self.isDone == 0:
+            self.cur_manu_ctrl["done"] = 2
+            self.sendMsg(self.cur_manu_ctrl)
+            self.obsToState.resetEpisode()
+        if self.num_eval >= n_eval_episodes:
+            self.isEvaluate = False
+            self.num_eval = 0
+            print("……………………………………评估结束 end……………………………………")
+        if self.isEvaluate and self.num_eval < n_eval_episodes:
+            if self.num_eval == 0:
+                print("……………………………………评估开始 begin, 共", n_eval_episodes,"局……………………………………")
+            self.num_eval += 1
+
         # 重置环境
         self.cur_manu_ctrl = {
             "msg_info": "驾驶操控,1001,2,0,Delay,Force,0|0`0`0.6`0",
@@ -156,11 +171,14 @@ class MyCombatEnv(gym.Env):
         self.Red_client.send(json.dumps(msg).encode("utf-8"))
 
     def getStateReward(self):
-        self.latest_observation, self.latest_reward, self.isDone = self.obsToState.getStateRewardDone(
-            self.firstFrameInfo, self.secondFrameInfo, self.thirdFrameInfo, self.secondFrameTime)
-        self.preInfo = self.nowInfo
-        self.PreTime = self.CurTime
-        self.pre_msg_type = self.msg_type
+        if len(self.nowInfo) != 0:
+            self.latest_observation, self.latest_reward, self.isDone = self.obsToState.getStateRewardDone(
+                self.firstFrameInfo, self.secondFrameInfo, self.thirdFrameInfo, self.secondFrameTime)
+            self.preInfo = self.nowInfo
+            self.PreTime = self.CurTime
+            self.pre_msg_type = self.msg_type
+        else:
+            self.isDone = 2
 
     def receiveMsg(self):
         try:
@@ -197,6 +215,9 @@ class MyCombatEnv(gym.Env):
             # "done": self.isDone != 0,
             # "potential_reward": self.potential_reward
         }
+
+    def set_isEvaluate(self, flag=False):
+        self.isEvaluate = flag
 
 
 

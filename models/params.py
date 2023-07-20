@@ -12,18 +12,20 @@ max_episodes=int(1e5)     # (int) – Maximum number of episodes to run
 
 StateDim = (42, )  # 状态维度
 ActionDim = (4, )   # 动作维度
-Train = 1      # 0，1，2分别表示：0重新训练，1加载之前的训练，2测试模式
+Train = 0      # 0，1，2分别表示：0重新训练，1加载之前的训练，2测试模式
+
+eval_freq = 200 # 每隔多少个step进行一次测试
+n_eval_episodes = 2 # 测试时的episode数
 
 
 class FolderPath:
     def __init__(self):
         # Red
-        save_date = '2023_07_13'
-        load_date = '2023_07_12'
-        model_name = "sac_model_1600000_steps.zip"
-        self.Save_ModelDir_Red = "./models/Red/"+save_date+"/sac_checkpoints/"
+        save_date = '2023_07_18'
+        load_date = '2023_07_16'
+        model_name = "sac_model_2000000_steps.zip"
+        self.Save_ModelDir_Red = "./models/Red/"+save_date
         self.Load_ModelDir_Red = "./models/Red/"+load_date+"/sac_checkpoints/"+model_name
-        # self.LogDir_Red = "./logs/Red/"+save_date+"/sac_tensorboard/"
         self.LogDir_Red = "./logs/Red/"+save_date
         # Blue
         # self.Save_ModelDir_Blue = "./models/Blue/"+save_date+"/sac_checkpoints/"

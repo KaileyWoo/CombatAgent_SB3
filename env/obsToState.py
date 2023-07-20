@@ -27,6 +27,7 @@ class ObsToState:
         """
         self.CurTime = time
         self.isDone = 0
+
         #解析第1帧数据
         pre_self_track, pre_DetectedInfo = self.parseOneFrameData(first_info)
         #解析第2帧数据
@@ -42,15 +43,13 @@ class ObsToState:
         #状态向量
         STATE = np.concatenate((pre_state, cur_state, next_state)).reshape(StateDim).astype(np.float32)
 
-        cur_sparse_reward, self.CurPotentialReward = self.getReward(cur_self_track, cur_DetectedInfo, True)
-        next_sparse_reward, next_potential_reward = self.getReward(next_self_track, next_DetectedInfo, False)
+        # cur_sparse_reward, self.CurPotentialReward = self.getReward(cur_self_track, cur_DetectedInfo, True)
+        # next_sparse_reward, next_potential_reward = self.getReward(next_self_track, next_DetectedInfo, False)
+        self.CurPotentialReward, terminate_prob = self.getReward(cur_self_track, cur_DetectedInfo, True)
+        next_potential_reward, next_terminate_prob = self.getReward(next_self_track, next_DetectedInfo, False)
 
         # reward function
-        self.CurTotalReward = cur_sparse_reward + next_potential_reward - self.CurPotentialReward # + 0.001*math.tanh(-self.CurTime / 300)
-        # termination probability
-        terminate_prob = self.CurPotentialReward
-        if terminate_prob < 0:
-            terminate_prob = 0
+        self.CurTotalReward = next_potential_reward - self.CurPotentialReward # + 0.01*math.tanh(-self.CurTime / 300)
 
         self.is_termination(terminate_prob, cur_self_track)
 
@@ -58,7 +57,7 @@ class ObsToState:
 
     def is_termination(self, terminate_prob, cur_self_info):
         #判断是否结束
-        if terminate_prob > 0.7:
+        if terminate_prob > 0.8 and self.CurDistance <= 1000:
             self.isDone = 1
             terminal_reward = 50 + math.exp(-2*self.CurTime/300)
             self.CurTotalReward += terminal_reward
@@ -71,33 +70,40 @@ class ObsToState:
         elif self.CurDistance > self.Distance_Max:
             self.isDone = 2
             terminal_reward = -50 + math.tanh(-math.fabs(self.CurAttackAngle) / math.pi)
+            #terminal_reward = -50
             self.CurTotalReward += terminal_reward
             self.TotalReward += self.CurTotalReward
             print("第", self.episode, "局结束，超出最大距离范围，时间: ", self.CurTime, ", TotalReward=", self.TotalReward, ", CurAttackAngle=",
-                  self.CurAttackAngle * 180 / math.pi)
+                  self.CurAttackAngle * 180 / math.pi, ", escapeAngle=", self.CurEscapeAngle*180/math.pi)
 
         elif cur_self_info['Altitude'] > self.ALT_Max or cur_self_info['Altitude'] < self.ALT_Min:
             self.isDone = 2
             #terminal_reward = -40 + math.tanh((self.WEZ_Min - self.CurDistance) / self.Distance_Max)
             terminal_reward = -50 + math.tanh(-math.fabs(self.CurAttackAngle) / math.pi)
+            #terminal_reward = -50
             self.CurTotalReward += terminal_reward
             self.TotalReward += self.CurTotalReward
             print("第", self.episode, "局结束，高度越界，时间: ", self.CurTime, ", TotalReward=", self.TotalReward,
-                  ", CurAttackAngle=", self.CurAttackAngle * 180 / math.pi, ", distance=", self.CurDistance)
+                  ", CurAttackAngle=", self.CurAttackAngle * 180 / math.pi, ", escapeAngle=", self.CurEscapeAngle*180/math.pi,
+                  ", distance=", self.CurDistance)
 
         elif self.CurTime > 299:
             self.isDone = 3
             #terminal_reward = -30 + math.tanh((self.WEZ_Min - self.CurDistance) / self.Distance_Max)
             terminal_reward = -40 + math.tanh(-math.fabs(self.CurAttackAngle) / math.pi) + \
                               math.tanh((self.WEZ_Min - self.CurDistance) / self.Distance_Max)
+            #terminal_reward = -30
             self.CurTotalReward += terminal_reward
             self.TotalReward += self.CurTotalReward
             print("第", self.episode, "局结束，---超时---，", "TotalReward=", self.TotalReward,
-                  ", CurAttackAngle=", self.CurAttackAngle * 180 / math.pi, ", distance=", self.CurDistance)
+                  ", CurAttackAngle=", self.CurAttackAngle * 180 / math.pi, ", escapeAngle=", self.CurEscapeAngle*180/math.pi,
+                  ", distance=", self.CurDistance)
 
         if self.isDone != 0:
             self.TotalReward = 0
             self.episode += 1
+        else:
+            self.TotalReward += self.CurTotalReward
 
     # 计算奖励
     def getReward(self, self_info, dete_info, curFlag=False):
@@ -107,34 +113,41 @@ class ObsToState:
         distanceVector3D = RongAoUtils.getDistanceVector3D(dete_info)
         selfPlaneSpeedVector = RongAoUtils.getSpeedVector3D(self_info)
         detePlaneSpeedVector = RongAoUtils.getSpeedVector3D(dete_info)
-        attackAngle = math.acos(
+        self_attackAngle = math.acos(
             (selfPlaneSpeedVector[0] * distanceVector3D[0] + selfPlaneSpeedVector[1] * distanceVector3D[1] +
              selfPlaneSpeedVector[2] * distanceVector3D[2]) / distance)
-        escapeAngle = math.acos(
+        self_escapeAngle = math.pi - self_attackAngle
+
+        target_escapeAngle = math.acos(
             (detePlaneSpeedVector[0] * distanceVector3D[0] + detePlaneSpeedVector[1] * distanceVector3D[1] +
              detePlaneSpeedVector[2] * distanceVector3D[2]) / distance)
+        target_attackAngle = math.pi - target_escapeAngle
 
-        # sparse reward function
-        sparse_reward = 0
-        # 敌机在我机范围内
-        if math.fabs(attackAngle) <= math.pi / 3 and math.fabs(escapeAngle) <= math.pi / 3 and \
-                (distance >= self.WEZ_Min and distance <= self.WEZ_Max):
-            sparse_reward = 1
-        # 我机在敌机范围内
-        if math.fabs(attackAngle) >= 2 * math.pi / 3 and math.fabs(escapeAngle) >= 2 * math.pi / 3 and \
-                (distance >= self.WEZ_Min and distance <= self.WEZ_Max):
-            sparse_reward = -1
+        #potential_reward = (1 - math.fabs(self_attackAngle) / math.pi) * math.exp(-0.0002 * math.fabs(distance - self.WEZ_Min))
+        potential_reward = (1 - math.fabs(self_attackAngle) / math.pi)
+        terminate_prob = potential_reward
 
-        # potential function
-        potential_reward = (1 - (math.fabs(attackAngle) / math.pi + math.fabs(escapeAngle) / math.pi)) * \
-                           math.exp(-0.0002 * math.fabs(distance - self.WEZ_Min))
+        # # sparse reward function
+        # sparse_reward = 0
+        # # 敌机在我机范围内
+        # if math.fabs(attackAngle) <= math.pi / 3 and math.fabs(escapeAngle) <= math.pi / 3 and \
+        #         (distance >= self.WEZ_Min and distance <= self.WEZ_Max):
+        #     sparse_reward = 1
+        # # 我机在敌机范围内
+        # if math.fabs(attackAngle) >= 2 * math.pi / 3 and math.fabs(escapeAngle) >= 2 * math.pi / 3 and \
+        #         (distance >= self.WEZ_Min and distance <= self.WEZ_Max):
+        #     sparse_reward = -1
+        #
+        # # potential function
+        # potential_reward = (1 - (math.fabs(attackAngle) / math.pi + math.fabs(escapeAngle) / math.pi)) * \
+        #                    math.exp(-0.0002 * math.fabs(distance - self.WEZ_Min))
 
         if curFlag is True:
             self.CurDistance = distance
-            self.CurAttackAngle = attackAngle
-            self.CurEscapeAngle = escapeAngle
+            self.CurAttackAngle = self_attackAngle
+            self.CurEscapeAngle = target_escapeAngle
 
-        return sparse_reward, potential_reward
+        return potential_reward, terminate_prob
 
 
     # 获得一帧的状态
@@ -198,7 +211,10 @@ class ObsToState:
 
         return cur_self_track, cur_DetectedInfo
 
-
+    def resetEpisode(self):
+        print("第", self.episode, "局结束，本局被中断！！！  时间：", self.CurTime, ", TotalReward=", self.TotalReward)
+        self.TotalReward = 0
+        self.episode += 1
 
 
 
