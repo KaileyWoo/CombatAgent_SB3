@@ -78,7 +78,7 @@ class RongAoUtils:
         :param z_pos: 脚蹬位置
         :return:动作字典
         """
-        action["msg_info"] = "驾驶操控," + str(id) +",2,0,Delay,Force,0|" + str(x_pos) + "`" + str(y_pos) + "`" + str(r_pos) + "`" + str(z_pos)
+        action["msg_info"] = ["驾驶操控," + str(id) +",2,0,Delay,Force,0|" + str(x_pos) + "`" + str(y_pos) + "`" + str(r_pos) + "`" + str(z_pos)]
 
         return action
 

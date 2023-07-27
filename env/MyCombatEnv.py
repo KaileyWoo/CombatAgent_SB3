@@ -5,10 +5,9 @@ import struct
 import json
 import types
 
-from models.params import StateDim, ActionDim, n_eval_episodes
+from models.params import StateDim, ActionDim, n_eval_episodes, FRAMES_NUM
 from env.obsToState import ObsToState
 from utils.RongAoUtils import RongAoUtils
-
 
 # 定义环境类
 class MyCombatEnv(gym.Env):
@@ -34,9 +33,9 @@ class MyCombatEnv(gym.Env):
             "msg_info": {
                 "identify": "red"}}
         self.cur_manu_ctrl = {
-            "msg_info": "驾驶操控,1001,2,0,Delay,Force,0|0`0`0.6`0",
+            "msg_info": ["驾驶操控,1001,2,0,Delay,Force,0|0`0`0.6`0"],
             "msg_type": "manu_ctrl",
-            "done": "0"}  # 是否结束战斗并附带原因[0-未结束 1-本方胜 2-敌方胜[本机摔或高度过低] 3-时间到]
+            "done": 0}  # 是否结束战斗并附带原因[0-未结束 1-本方胜 2-敌方胜[本机摔或高度过低] 3-时间到]
         # self.manu_ctrl_launch = {
         #     "msg_info": "发射, 1001, 2, 0, Delay, Force, 0 | 1002",
         #     "msg_type": "manu_ctrl"}
@@ -54,6 +53,7 @@ class MyCombatEnv(gym.Env):
         self.firstFrameInfo = None
         self.secondFrameInfo = None
         self.thirdFrameInfo = None
+        self.firstFrameTime = 0
         self.secondFrameTime = 0
         self.latest_observation = np.zeros(StateDim, dtype=np.float32)
         self.latest_reward = 0
@@ -80,11 +80,16 @@ class MyCombatEnv(gym.Env):
         self.sendMsg(self.cur_manu_ctrl)
 
         # 更新数据信息,接收环境信息
-        self.secondFrameTime = self.CurTime
-        self.receiveMsg()
-        self.firstFrameInfo = self.secondFrameInfo
-        self.secondFrameInfo = self.thirdFrameInfo
-        self.thirdFrameInfo = self.nowInfo
+        if FRAMES_NUM == 3:
+            self.secondFrameTime = self.CurTime
+            self.receiveMsg()
+            self.firstFrameInfo = self.secondFrameInfo
+            self.secondFrameInfo = self.thirdFrameInfo
+            self.thirdFrameInfo = self.nowInfo
+        else:
+            self.receiveMsg()
+            self.firstFrameInfo = self.secondFrameInfo
+            self.secondFrameInfo = self.nowInfo
         if self.msg_type == "result":
             print("已收到对局结束指令!")
             terminated = True
@@ -121,9 +126,9 @@ class MyCombatEnv(gym.Env):
 
         # 重置环境
         self.cur_manu_ctrl = {
-            "msg_info": "驾驶操控,1001,2,0,Delay,Force,0|0`0`0.6`0",
+            "msg_info": ["驾驶操控,1001,2,0,Delay,Force,0|0`0`0.6`0"],
             "msg_type": "manu_ctrl",
-            "done": "0"}
+            "done": 0}
         self.rcv_msg = bytes()
         self.CurTime = 0
         self.PreTime = 0
@@ -134,6 +139,7 @@ class MyCombatEnv(gym.Env):
         self.firstFrameInfo = None
         self.secondFrameInfo = None
         self.thirdFrameInfo = None
+        self.firstFrameTime = 0
         self.secondFrameTime = 0
         self.latest_observation = np.zeros(StateDim, dtype=np.float32)
         self.latest_reward = 0
@@ -141,6 +147,28 @@ class MyCombatEnv(gym.Env):
         self.isDone = 0
         observation = np.zeros(StateDim, dtype=np.float32)
         info = {}
+        if FRAMES_NUM == 3:
+            self.threeFrames()
+        else:
+            self.towFrames()
+        if self.role == "red" and self.msg_type == "red_out_put" or self.role == "blue" and self.msg_type == "blue_out_put":
+            self.getStateReward()
+            observation = self.latest_observation
+        info = self._get_info()
+        return observation, info
+
+    def towFrames(self):
+        # 获得第一帧信息
+        while self.preInfo is None:
+            self.receiveMsg()
+            self.preInfo = self.nowInfo
+        self.sendMsg(self.cur_manu_ctrl)
+        self.firstFrameInfo = self.nowInfo
+        # 获得第二帧信息
+        self.receiveMsg()
+        self.secondFrameInfo = self.nowInfo
+
+    def threeFrames(self):
         # 获得第一帧信息
         while self.preInfo is None:
             self.receiveMsg()
@@ -158,11 +186,6 @@ class MyCombatEnv(gym.Env):
         # 获得第三帧信息
         self.receiveMsg()
         self.thirdFrameInfo = self.nowInfo
-        if self.role == "red" and self.msg_type == "red_out_put" or self.role == "blue" and self.msg_type == "blue_out_put":
-            self.getStateReward()
-            observation = self.latest_observation
-        info = self._get_info()
-        return observation, info
 
     def sendMsg(self, msg):
         msg_len = len(json.dumps(msg).encode("utf-8"))
@@ -172,8 +195,12 @@ class MyCombatEnv(gym.Env):
 
     def getStateReward(self):
         if len(self.nowInfo) != 0:
-            self.latest_observation, self.latest_reward, self.isDone = self.obsToState.getStateRewardDone(
-                self.firstFrameInfo, self.secondFrameInfo, self.thirdFrameInfo, self.secondFrameTime)
+            if FRAMES_NUM == 3:
+                self.latest_observation, self.latest_reward, self.isDone = self.obsToState.getStateRewardDone(
+                    self.firstFrameInfo, self.secondFrameInfo, self.thirdFrameInfo, self.secondFrameTime)
+            else:
+                self.latest_observation, self.latest_reward, self.isDone = self.obsToState.getStateRewardDoneForTwoFrames(
+                    self.firstFrameInfo, self.secondFrameInfo, self.CurTime)
             self.preInfo = self.nowInfo
             self.PreTime = self.CurTime
             self.pre_msg_type = self.msg_type

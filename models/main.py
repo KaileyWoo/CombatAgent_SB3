@@ -4,7 +4,8 @@ from stable_baselines3.common.callbacks import CheckpointCallback, StopTrainingO
 from stable_baselines3.common.monitor import Monitor
 import gymnasium as gym
 from models.params import *
-from logs.MyCallback import MyCallback
+from models.MyCallback import MyCallback
+from models.CallbackAfterEval import CallbackAfterEval
 import env
 
 
@@ -30,13 +31,16 @@ def main(role='red', role_id='1001'):
     # 定义模型
     model = SAC('MlpPolicy', env, verbose=0, device='cuda', tensorboard_log=tensorboardDir,
                 batch_size=batch_size, learning_rate=learning_rate, buffer_size=buffer_size)
+    # model = PPO('MlpPolicy', env, verbose=0, device='cuda', tensorboard_log=tensorboardDir,
+    #             batch_size=batch_size, learning_rate=learning_rate, buffer_size=buffer_size)
     # 定义回调函数
     checkpoint_callback = CheckpointCallback(save_freq=policy_interval, save_path=modelDir, name_prefix='sac_model')
                                               #save_replay_buffer=True, save_vecnormalize=True)
-    eval_callback = EvalCallback(env, best_model_save_path=bestModelDir, log_path=evalDir, n_eval_episodes=n_eval_episodes,
-                                 eval_freq=eval_freq, deterministic=True)
+    # eval_callback = EvalCallback(env, best_model_save_path=bestModelDir, log_path=evalDir, n_eval_episodes=n_eval_episodes,
+    #                              callback_after_eval=CallbackAfterEval(), eval_freq=eval_freq, deterministic=True)
     #callback_max_episodes = StopTrainingOnMaxEpisodes(max_episodes=max_episodes, verbose=1)
-    callback = [MyCallback(env=env, eval_freq=eval_freq), checkpoint_callback, eval_callback]
+    #my_callback = MyCallback(env=env, eval_freq=eval_freq)
+    callback = [checkpoint_callback]
     # 训练或测试模型
     if Train != 0:
         print("加载模型，路径：" + loadDir)

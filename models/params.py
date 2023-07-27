@@ -1,7 +1,6 @@
 import os
 
 learning_rate = 5e-4      # learning rate for adam optimizer
-#learning_rate = 9e-4
 buffer_size = int(1e6)    # size of the replay buffer
 batch_size = 256          # Minibatch size for each gradient update
 tau = 0.005               # (float) – the soft update coefficient (“Polyak update”, between 0 and 1)
@@ -10,18 +9,23 @@ total_timesteps=int(2e8)  # (int) – The total number of samples (env steps) to
 policy_interval=int(4e5)  # (int) – Policy saving interval
 max_episodes=int(1e5)     # (int) – Maximum number of episodes to run
 
-StateDim = (42, )  # 状态维度
-ActionDim = (4, )   # 动作维度
-Train = 0      # 0，1，2分别表示：0重新训练，1加载之前的训练，2测试模式
-
-eval_freq = 200 # 每隔多少个step进行一次测试
+eval_freq = int(1000) # 每隔多少个step进行一次测试
 n_eval_episodes = 2 # 测试时的episode数
 
+FRAMES_NUM = 2  # 2 or 3
+
+if FRAMES_NUM == 3:
+    StateDim = (42, )  # 状态维度
+else:
+    StateDim = (15, )  # 状态维度
+
+ActionDim = (4, )   # 动作维度
+Train = 0      # 0，1，2分别表示：0重新训练，1加载之前的训练，2测试模式
 
 class FolderPath:
     def __init__(self):
         # Red
-        save_date = '2023_07_18'
+        save_date = '2023_07_27'
         load_date = '2023_07_16'
         model_name = "sac_model_2000000_steps.zip"
         self.Save_ModelDir_Red = "./models/Red/"+save_date
