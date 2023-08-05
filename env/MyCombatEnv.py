@@ -73,7 +73,6 @@ class MyCombatEnv(gym.Env):
         reward = 0
         terminated = False
         truncated = False
-        info = {}
         # 发送动作指令
         self.cur_manu_ctrl = RongAoUtils.moveRL(self.cur_manu_ctrl, self.id, action[0], action[1], action[2], action[3])
         self.cur_manu_ctrl["done"] = self.isDone  # 结束标志
@@ -152,9 +151,16 @@ class MyCombatEnv(gym.Env):
         else:
             self.towFrames()
         if self.role == "red" and self.msg_type == "red_out_put" or self.role == "blue" and self.msg_type == "blue_out_put":
-            self.getStateReward()
-            observation = self.latest_observation
+            if len(self.nowInfo) != 0:
+                self.latest_observation = self.obsToState.getState(self.firstFrameInfo, self.secondFrameInfo, self.CurTime)
+                self.preInfo = self.nowInfo
+                self.PreTime = self.CurTime
+                self.pre_msg_type = self.msg_type
+                observation = self.latest_observation
         info = self._get_info()
+        if self.isEvaluate is False:
+            print("重置环境")
+
         return observation, info
 
     def towFrames(self):
@@ -238,9 +244,7 @@ class MyCombatEnv(gym.Env):
 
     def _get_info(self):
         return {
-            # "reward": self.latest_reward,
-            # "done": self.isDone != 0,
-            # "potential_reward": self.potential_reward
+            "done": self.isDone,
         }
 
     def set_isEvaluate(self, flag=False):

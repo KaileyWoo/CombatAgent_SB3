@@ -138,12 +138,13 @@ class RongAoUtils:
         """
         返回归一化的速度矢量
         """
-        # heading = planeInfo['Heading']
+        # heading = math.pi/2 - planeInfo['Heading']
         # pitch = planeInfo['Pitch']
         # dx = math.cos(pitch) * math.cos(heading)
         # dy = math.cos(pitch) * math.sin(heading)
         # dz = math.sin(pitch)
         # dR = math.sqrt(dx * dx + dy * dy + dz * dz)
+        # return [dx / dR, dy / dR, dz / dR]
 
         Speed = math.sqrt(planeInfo['V_D'] * planeInfo['V_D'] + planeInfo['V_E'] * planeInfo['V_E'] + planeInfo['V_N'] * planeInfo['V_N'])
         return [planeInfo['V_E'] / Speed, planeInfo['V_N'] / Speed, planeInfo['V_D'] / Speed]
