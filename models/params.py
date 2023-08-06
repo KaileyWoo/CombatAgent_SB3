@@ -10,8 +10,12 @@ policy_interval=int(2e4)  # (int) – Policy saving interval
 Checkpoint_interval=int(4e5)  # (int) – Checkpoint saving interval
 max_episodes=int(1e5)     # (int) – Maximum number of episodes to run
 
+num_envs = 6   # 环境数量(多进程数量)
 eval_freq = int(500)  # 训练过程中每隔多少个step进行一次模型评估
-n_eval_episodes = 2   # 训练过程中模型评估时的episode局数
+n_eval_episodes = 5   # 训练过程中模型评估时的episode局数
+if  num_envs > 1:
+    eval_freq = eval_freq // num_envs
+    eval_freq = max(eval_freq, 1)  # 如果结果小于 1，设置为 1
 
 FRAMES_NUM = 2  # 2 or 3
 
@@ -27,7 +31,7 @@ Train = 2      # 0，1，2分别表示：0重新训练，1加载之前的训练�
 class FolderPath:
     def __init__(self, role='red'):
         self.role = role
-        save_date = '2023_08/2023_08_03'
+        save_date = '2023_08/2023_08_05'
         load_date = '2023_08/2023_08_03'
         self.load_steps = 3600000
         model_name = "sac_model_"+str(self.load_steps)+"_steps.zip"

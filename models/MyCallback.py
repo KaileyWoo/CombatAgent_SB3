@@ -12,7 +12,7 @@ class MyCallback(BaseCallback):
 
         self.policy_interval = policy_interval
         self.saveDir = save_dir
-        self.env = env.envs[0]
+        self.env = env
         self.eval_freq = eval_freq
 
 
