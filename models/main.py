@@ -51,7 +51,6 @@ def main(role='red', role_id='1001'):
     callback = [checkpoint_callback, my_callback]
     # 定义回调函数 ---end---
 
-
     # 训练或测试模型
     if params.Train != 0:
         print("加载模型，路径：" + params.loadModelDir)
