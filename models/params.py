@@ -10,12 +10,14 @@ policy_interval=int(2e4)  # (int) – Policy saving interval
 Checkpoint_interval=int(4e5)  # (int) – Checkpoint saving interval
 max_episodes=int(1e5)     # (int) – Maximum number of episodes to run
 
-num_envs = 6   # 环境数量(多进程数量)
+num_envs = 1   # 环境数量(多进程数量)
 eval_freq = int(500)  # 训练过程中每隔多少个step进行一次模型评估
 n_eval_episodes = 5   # 训练过程中模型评估时的episode局数
-if  num_envs > 1:
-    eval_freq = eval_freq // num_envs
-    eval_freq = max(eval_freq, 1)  # 如果结果小于 1，设置为 1
+
+if num_envs > 1:
+    policy_interval = max(policy_interval // num_envs, 1)
+    Checkpoint_interval = max(Checkpoint_interval // num_envs, 1)
+    eval_freq = max(eval_freq // num_envs, 1)
 
 FRAMES_NUM = 2  # 2 or 3
 
@@ -23,19 +25,29 @@ if FRAMES_NUM == 3:
     StateDim = (42, )  # 状态维度
 else:
     StateDim = (48, )  # 状态维度 24*2
-
 ActionDim = (4, )   # 动作维度
-Train = 2      # 0，1，2分别表示：0重新训练，1加载之前的训练，2测试模式
 
 
-class FolderPath:
+class Params(object):
     def __init__(self, role='red'):
         self.role = role
-        save_date = '2023_08/2023_08_05'
-        load_date = '2023_08/2023_08_03'
-        self.load_steps = 3600000
-        model_name = "sac_model_"+str(self.load_steps)+"_steps.zip"
+        # 红方
+        if self.role == 'red':
+            self.Train = 1  # 0，1，2分别表示：0重新训练，1加载之前的训练，2测试模式
+            self.test_episodes = 1000  # 测试的回合数
+            self.test_timesteps = 100000  # 测试的步数
+        # 蓝方
+        else:
+            self.Train = 2
+            self.test_episodes = 1000  # 测试的回合数
+            self.test_timesteps = 100000  # 测试的步数
+
+        # 文件夹相关路径处理
+        save_date = '2023_08/2023_08_13'
+        load_date = '2023_08/2023_08_13'
         flag_use_checkpoints = False
+        self.load_steps = 20800000
+        model_name = "sac_model_"+str(self.load_steps)+"_steps.zip"
         # Red
         if role == 'red':
             self.Save_ModelDir_Red = "./models/Red/"+save_date
@@ -76,7 +88,7 @@ class FolderPath:
             os.makedirs(self.monitorDir)
         if not os.path.exists(self.evalDir):
             os.makedirs(self.evalDir)
-        if not os.path.exists(self.loadModelDir) and Train != 0:
+        if not os.path.exists(self.loadModelDir) and self.Train != 0:
             print("加载模型路径错误！ 路径：" + self.loadModelDir)
 
 

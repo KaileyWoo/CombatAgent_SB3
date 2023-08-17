@@ -12,8 +12,9 @@ from utils.RongAoUtils import RongAoUtils
 # 定义环境类
 class MyCombatEnv(gym.Env):
     #metadata = {"render_modes": ["human"], "render_fps": 30}
-    def __init__(self, role='red', role_id='1001', port=8868, render_mode=None):
+    def __init__(self, role='red', role_id='1001', env_id=0, render_mode=None):
         super().__init__()
+        self.env_id = env_id
         # 使用连续动作空间
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=ActionDim, dtype=np.float32)
         # 使用连续状态空间
@@ -26,7 +27,7 @@ class MyCombatEnv(gym.Env):
         # 端口连接
         self.Red_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.Red_client.settimeout(5)  # 设置超时时间为 5 秒
-        self.Red_client.connect(('127.0.0.1', port))
+        self.Red_client.connect(('127.0.0.1', 8868+env_id))
 
         self.Red_identify_dict = {
             "msg_type": "identify",
@@ -36,9 +37,9 @@ class MyCombatEnv(gym.Env):
             "msg_info": ["驾驶操控,1001,2,0,Delay,Force,0|0`0`0.6`0"],
             "msg_type": "manu_ctrl",
             "done": 0}  # 是否结束战斗并附带原因[0-未结束 1-本方胜 2-敌方胜[本机摔或高度过低] 3-时间到]
-        # self.manu_ctrl_launch = {
-        #     "msg_info": "发射, 1001, 2, 0, Delay, Force, 0 | 1002",
-        #     "msg_type": "manu_ctrl"}
+        self.manu_ctrl_launch = {
+            "msg_info": "发射, 1001, 2, 0, Delay, Force, 0 | 1002",
+            "msg_type": "manu_ctrl"}
 
         self.Red_identify_dict["msg_info"]["identify"] = role
         self.role = role
@@ -59,7 +60,7 @@ class MyCombatEnv(gym.Env):
         self.latest_reward = 0
         self.potential_reward = 0
         self.isDone = 0
-        self.obsToState = ObsToState(port)
+        self.obsToState = ObsToState(self.env_id, 8868+env_id)
         self.isEvaluate = False
         self.num_eval = 0
         # 初始化环境交互类信息
@@ -99,6 +100,7 @@ class MyCombatEnv(gym.Env):
             if self.isDone != 0:
                 self.cur_manu_ctrl["done"] = self.isDone  # 结束标志
                 self.sendMsg(self.cur_manu_ctrl)
+                self.sendMsg(self.manu_ctrl_launch)
                 terminated = True
         else:
             print("接收到不明信息!")

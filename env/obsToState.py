@@ -5,7 +5,8 @@ from models.params import StateDim
 
 
 class ObsToState:
-    def __init__(self, port=8868):
+    def __init__(self, env_id=0, port=8868):
+        self.env_id = env_id+1
         self.port = port
         self.isDone = 0  #是否结束战斗并附带原因[0-未结束 1-本方胜 2-敌方胜[本机摔或高度过低] 3-时间到]
         self.CurTime = 0
@@ -58,12 +59,14 @@ class ObsToState:
 
     # 判断是否结束
     def is_done(self, self_track):
+        terminal_reward = (1 - (math.fabs(self.CurAttackAngle) / math.pi + math.fabs(self.CurEscapeAngle) / math.pi)) * \
+                           math.exp(-0.0005 * math.fabs(self.CurDistance - self.WEZ_Min))
         if self.CurDistance > self.Distance_Max:
             Reward = -50 + math.tanh(-math.fabs(self.CurAttackAngle) / math.pi)
             self.CurTotalReward = Reward
             self.TotalReward += self.CurTotalReward
             self.isDone = 2
-            str_ = f"【port={self.port}】 第{self.episode}局结束，***距离***越界，时间：{self.CurTime:.1f}s，奖励：{self.TotalReward:.6f}，距离：{self.CurDistance:.2f}m，" \
+            str_ = f"【第{self.env_id}组】【port={self.port}】第 {self.episode} 局结束！***距离***越界，时间：{self.CurTime:.1f}s，总奖励：{self.TotalReward:.6f}，距离：{self.CurDistance:.2f}m，" \
                    f"高度：{self_track['Altitude']:.2f}m，攻击角：{self.CurAttackAngle * 180 / math.pi:.2f}，逃逸角：{self.CurEscapeAngle * 180 / math.pi:.2f}"
             print(str_)
         elif self_track['Altitude'] > self.ALT_Max or self_track['Altitude'] < self.ALT_Min:
@@ -71,7 +74,7 @@ class ObsToState:
             self.CurTotalReward = Reward
             self.TotalReward += self.CurTotalReward
             self.isDone = 2
-            str_ = f"【port={self.port}】 第{self.episode}局结束，+++高度+++越界，时间：{self.CurTime:.1f}s，奖励：{self.TotalReward:.6f}，距离：{self.CurDistance:.2f}m，" \
+            str_ = f"【第{self.env_id}组】【port={self.port}】第 {self.episode} 局结束！+++高度+++越界，时间：{self.CurTime:.1f}s，总奖励：{self.TotalReward:.6f}，距离：{self.CurDistance:.2f}m，" \
                    f"高度：{self_track['Altitude']:.2f}m，攻击角：{self.CurAttackAngle * 180 / math.pi:.2f}，逃逸角：{self.CurEscapeAngle * 180 / math.pi:.2f}"
             print(str_)
         elif self.CurTime >= self.TIME_Max:
@@ -79,17 +82,18 @@ class ObsToState:
             self.CurTotalReward = Reward
             self.TotalReward += self.CurTotalReward
             self.isDone = 3
-            str_ = f"【port={self.port}】 第{self.episode}局结束，---时间---越界，时间：{self.CurTime:.1f}s，奖励：{self.TotalReward:.6f}，距离：{self.CurDistance:.2f}m，" \
+            str_ = f"【第{self.env_id}组】【port={self.port}】第 {self.episode} 局结束！---时间---越界，时间：{self.CurTime:.1f}s，总奖励：{self.TotalReward:.6f}，距离：{self.CurDistance:.2f}m，" \
                    f"高度：{self_track['Altitude']:.2f}m，攻击角：{self.CurAttackAngle * 180 / math.pi:.2f}，逃逸角：{self.CurEscapeAngle * 180 / math.pi:.2f}"
             print(str_)
-        elif math.fabs(self.CurAttackAngle) < math.pi / 3 and self.CurDistance < self.WEZ_Max:
-            Reward = 50 + 0.8*math.exp(-self.CurTime / self.TIME_Max) + 0.2*math.exp(-(math.fabs(self.CurEscapeAngle))/math.pi)
+        # elif math.fabs(self.CurAttackAngle) < math.pi / 3 and self.CurDistance < self.WEZ_Max:
+        elif terminal_reward > 0.6 and self.CurDistance < self.WEZ_Max:
+            Reward = 50 + 0.5*math.exp(-self.CurTime / self.TIME_Max) + 0.5*terminal_reward
             self.CurTotalReward = Reward
             self.TotalReward += self.CurTotalReward
             self.isDone = 1
             print("--------------------------------------------------------目标达成！---------------------------------------------------------------------")
-            str_ = f"【port={self.port}】 第{self.episode}局结束，时间: {self.CurTime:.1f}s，奖励：{self.TotalReward:.6f}，距离：{self.CurDistance:.2f}m，" \
-                   f"高度：{self_track['Altitude']:.2f}m，攻击角：{self.CurAttackAngle * 180 / math.pi:.2f}，逃逸角：{self.CurEscapeAngle * 180 / math.pi:.2f}"
+            str_ = f"【第{self.env_id}组】【port={self.port}】第 {self.episode} 局结束！时间: {self.CurTime:.1f}s，总奖励：{self.TotalReward:.6f}，终局奖励：{terminal_reward:.6f}，" \
+                   f"距离：{self.CurDistance:.2f}m，高度：{self_track['Altitude']:.2f}m，攻击角：{self.CurAttackAngle * 180 / math.pi:.2f}，逃逸角：{self.CurEscapeAngle * 180 / math.pi:.2f}"
             print(str_)
 
         if self.isDone != 0:
