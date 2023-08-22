@@ -26,16 +26,9 @@ def main(role='red', role_id='1001'):
     combatEnv = SubprocVecEnv(envs)
     combatEnv = VecMonitor(combatEnv, params.monitorDir)
 
-    # 创建单环境
-    # combatEnv = gym.make('MyCombatEnv-v0', role=role, role_id=role_id, port=8868)
-    # combatEnv = Monitor(combatEnv, params.monitorDir, allow_early_resets=True, override_existing=False)
-    # combatEnv = DummyVecEnv([lambda: combatEnv])
-
     # 定义模型
     model = SAC('MlpPolicy', combatEnv, verbose=0, device='cuda', tensorboard_log=params.tensorboardDir,
                 batch_size=batch_size, learning_rate=learning_rate, buffer_size=buffer_size)
-    # model = PPO('MlpPolicy', combatEnv, verbose=0, device='cuda', tensorboard_log=tensorboardDir,
-    #             batch_size=batch_size, learning_rate=learning_rate, buffer_size=buffer_size)
 
     # 定义回调函数 ---begin---
     # 保存模型的中间状态
@@ -51,12 +44,10 @@ def main(role='red', role_id='1001'):
     callback = [checkpoint_callback, my_callback]
     # 定义回调函数 ---end---
 
-
     # 训练或测试模型
     if params.Train != 0:
         print("加载模型，路径：" + params.loadModelDir)
         model.set_parameters(params.loadModelDir)
-        #model.load(loadModelDir)  # 会重新创建一个全新的模型
     if params.Train == 0:
         print("重头开始训练模型！ 模型保存路径：" + params.modelDir)
         print("日志保存路径：" + params.tensorboardDir)
@@ -64,32 +55,36 @@ def main(role='red', role_id='1001'):
     elif params.Train == 1:
         print("继续训练模型！ 模型保存路径：" + params.modelDir)
         print("日志保存路径：" + params.tensorboardDir)
-        #steps = total_timesteps - params.load_steps
         model.learn(total_timesteps=total_timesteps, callback=callback, reset_num_timesteps=False, progress_bar=True)
     else:
-        print("测试模型，共测试 " + str(params.test_episodes) + " 回合！")
+        print("测试模型，共测试 " + str(test_episodes) + " 回合！")
         obs = combatEnv.reset()
         win = 0
+        draw = 0
         total_reward = 0
         episodes = 0
         start_time = time.time()
-        for step in range(params.test_timesteps):
+        for step in range(test_timesteps):
             action, _states = model.predict(obs, deterministic=True)
             obs, reward, terminated, info = combatEnv.step(action)
             for env_idx in range(num_envs):
                 if terminated[env_idx]:
                     episodes += 1
                     total_reward += info[env_idx]['episode']['r']
-                    if info[env_idx]['done'] == 1:
+                    if role == "red" and info[env_idx]['result'] == 1 or role == "blue" and info[env_idx]['result'] == 2:
                         win += 1
-            if episodes >= params.test_episodes:
+                    if info[env_idx]['result'] == 3:
+                        draw += 1
+
+            if episodes >= test_episodes:
                 break
         end_time = time.time()
         execution_time = end_time - start_time
         print("***********************************************************************")
-        print("测试结束！共测试 " + str(episodes) + " 回合！胜利 " + str(win) + " 回合！")
-        print("胜率：" + str(win / params.test_episodes))
-        print("平均奖励：" + str(total_reward / params.test_episodes))
+        print("测试结束！共测试 " + str(episodes) + " 回合！胜利 " + str(win) + " 回合！平局" + str(draw) + "回合！")
+        print("胜率：" + str(win / test_episodes))
+        print("平均奖励：" + str(total_reward / test_episodes))
         print(f"Execution time: {execution_time/60:.2f} min ({execution_time:.2f} s)")
+
 
 

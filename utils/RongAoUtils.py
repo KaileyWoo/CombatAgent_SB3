@@ -68,7 +68,7 @@ class RongAoUtils:
 
     # 强化学习的动作，-1到1朝具体动作做映射
     @staticmethod
-    def moveRL(action,id, x_pos, y_pos, r_pos, z_pos):
+    def moveRL(action, id, x_pos, y_pos, r_pos, z_pos):
         """
         输入的动作都是-1到1
         :param action: 动作字典
@@ -147,7 +147,10 @@ class RongAoUtils:
         # return [dx / dR, dy / dR, dz / dR]
 
         Speed = math.sqrt(planeInfo['V_D'] * planeInfo['V_D'] + planeInfo['V_E'] * planeInfo['V_E'] + planeInfo['V_N'] * planeInfo['V_N'])
-        return [planeInfo['V_E'] / Speed, planeInfo['V_N'] / Speed, planeInfo['V_D'] / Speed]
+        if Speed != 0:
+            return [planeInfo['V_E'] / Speed, planeInfo['V_N'] / Speed, planeInfo['V_D'] / Speed]
+        else:
+            return [0, 0, 0]
 
     # 根据飞机信息计算飞机的对地速度
     @staticmethod

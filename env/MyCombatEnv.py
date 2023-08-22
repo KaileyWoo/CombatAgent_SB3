@@ -3,18 +3,19 @@ import numpy as np
 import socket
 import struct
 import json
-import types
 
-from models.params import StateDim, ActionDim, n_eval_episodes, FRAMES_NUM
+from models.params import StateDim, ActionDim, n_eval_episodes
 from env.obsToState import ObsToState
 from utils.RongAoUtils import RongAoUtils
 
 # 定义环境类
 class MyCombatEnv(gym.Env):
-    #metadata = {"render_modes": ["human"], "render_fps": 30}
     def __init__(self, role='red', role_id='1001', env_id=0, render_mode=None):
         super().__init__()
+        self.role = role
+        self.id = role_id
         self.env_id = env_id
+
         # 使用连续动作空间
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=ActionDim, dtype=np.float32)
         # 使用连续状态空间
@@ -26,24 +27,18 @@ class MyCombatEnv(gym.Env):
         # 创建仿真链接，初始化环境交互类信息
         # 端口连接
         self.Red_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.Red_client.settimeout(5)  # 设置超时时间为 5 秒
         self.Red_client.connect(('127.0.0.1', 8868+env_id))
 
         self.Red_identify_dict = {
             "msg_type": "identify",
             "msg_info": {
                 "identify": "red"}}
-        self.cur_manu_ctrl = {
-            "msg_info": ["驾驶操控,1001,2,0,Delay,Force,0|0`0`0.6`0"],
-            "msg_type": "manu_ctrl",
-            "done": 0}  # 是否结束战斗并附带原因[0-未结束 1-本方胜 2-敌方胜[本机摔或高度过低] 3-时间到]
         self.manu_ctrl_launch = {
             "msg_info": "发射, 1001, 2, 0, Delay, Force, 0 | 1002",
             "msg_type": "manu_ctrl"}
+        self.cur_manu_ctrl = self.generate_manu_ctrl_msg()
+        self.Red_identify_dict["msg_info"]["identify"] = self.role
 
-        self.Red_identify_dict["msg_info"]["identify"] = role
-        self.role = role
-        self.id = role_id
         self.rcv_msg = bytes()  # 缓存接收到的报文
         self.CurTime = 0
         self.PreTime = 0
@@ -59,12 +54,22 @@ class MyCombatEnv(gym.Env):
         self.latest_observation = np.zeros(StateDim, dtype=np.float32)
         self.latest_reward = 0
         self.potential_reward = 0
-        self.isDone = 0
         self.obsToState = ObsToState(self.env_id, 8868+env_id)
         self.isEvaluate = False
         self.num_eval = 0
+        self.result = 0
         # 初始化环境交互类信息
         self.sendMsg(self.Red_identify_dict)
+
+
+    def generate_manu_ctrl_msg(self):
+        msg_info = [f"驾驶操控,{self.id},2,0,Delay,Force,0|0`0`0.6`0"]
+        return {
+            "msg_info": msg_info,
+            "msg_type": "manu_ctrl",
+            "done": 0
+        }
+
 
     def step(self, action):
         """
@@ -76,32 +81,22 @@ class MyCombatEnv(gym.Env):
         truncated = False
         # 发送动作指令
         self.cur_manu_ctrl = RongAoUtils.moveRL(self.cur_manu_ctrl, self.id, action[0], action[1], action[2], action[3])
-        self.cur_manu_ctrl["done"] = self.isDone  # 结束标志
+        #self.cur_manu_ctrl["done"] = self.isDone  # 结束标志
         self.sendMsg(self.cur_manu_ctrl)
 
         # 更新数据信息,接收环境信息
-        if FRAMES_NUM == 3:
-            self.secondFrameTime = self.CurTime
-            self.receiveMsg()
-            self.firstFrameInfo = self.secondFrameInfo
-            self.secondFrameInfo = self.thirdFrameInfo
-            self.thirdFrameInfo = self.nowInfo
-        else:
-            self.receiveMsg()
-            self.firstFrameInfo = self.secondFrameInfo
-            self.secondFrameInfo = self.nowInfo
+        self.receiveMsg()
+        self.firstFrameInfo = self.secondFrameInfo
+        self.secondFrameInfo = self.nowInfo
         if self.msg_type == "result":
-            print("已收到对局结束指令!")
+            self.result = self.nowInfo["result"]
+            reward = self.obsToState.proTerminal(self.result, self.role)
+            observation = self.latest_observation
             terminated = True
         elif self.role == "red" and self.msg_type == "red_out_put" or self.role == "blue" and self.msg_type == "blue_out_put":
             self.getStateReward()
             observation = self.latest_observation
             reward = self.latest_reward
-            if self.isDone != 0:
-                self.cur_manu_ctrl["done"] = self.isDone  # 结束标志
-                self.sendMsg(self.cur_manu_ctrl)
-                self.sendMsg(self.manu_ctrl_launch)
-                terminated = True
         else:
             print("接收到不明信息!")
             truncated = True
@@ -112,24 +107,21 @@ class MyCombatEnv(gym.Env):
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         # 验证评估
-        if self.isEvaluate and self.isDone == 0:
-            self.cur_manu_ctrl["done"] = 2
-            self.sendMsg(self.cur_manu_ctrl)
-            self.obsToState.resetEpisode()
-        if self.num_eval >= n_eval_episodes:
-            self.isEvaluate = False
-            self.num_eval = 0
-            print("……………………………………评估结束 end……………………………………")
-        if self.isEvaluate and self.num_eval < n_eval_episodes:
-            if self.num_eval == 0:
-                print("……………………………………评估开始 begin, 共", n_eval_episodes,"局……………………………………")
-            self.num_eval += 1
+        # if self.isEvaluate and self.isDone == 0:
+        #     self.cur_manu_ctrl["done"] = 2
+        #     self.sendMsg(self.cur_manu_ctrl)
+        #     self.obsToState.resetEpisode()
+        # if self.num_eval >= n_eval_episodes:
+        #     self.isEvaluate = False
+        #     self.num_eval = 0
+        #     print("……………………………………评估结束 end……………………………………")
+        # if self.isEvaluate and self.num_eval < n_eval_episodes:
+        #     if self.num_eval == 0:
+        #         print("……………………………………评估开始 begin, 共", n_eval_episodes,"局……………………………………")
+        #     self.num_eval += 1
 
         # 重置环境
-        self.cur_manu_ctrl = {
-            "msg_info": ["驾驶操控,1001,2,0,Delay,Force,0|0`0`0.6`0"],
-            "msg_type": "manu_ctrl",
-            "done": 0}
+        self.cur_manu_ctrl = self.generate_manu_ctrl_msg()
         self.rcv_msg = bytes()
         self.CurTime = 0
         self.PreTime = 0
@@ -145,13 +137,10 @@ class MyCombatEnv(gym.Env):
         self.latest_observation = np.zeros(StateDim, dtype=np.float32)
         self.latest_reward = 0
         self.potential_reward = 0
-        self.isDone = 0
+        self.result = 0
         observation = np.zeros(StateDim, dtype=np.float32)
         info = {}
-        if FRAMES_NUM == 3:
-            self.threeFrames()
-        else:
-            self.towFrames()
+        self.towFrames()
         if self.role == "red" and self.msg_type == "red_out_put" or self.role == "blue" and self.msg_type == "blue_out_put":
             if len(self.nowInfo) != 0:
                 self.latest_observation = self.obsToState.getState(self.firstFrameInfo, self.secondFrameInfo, self.CurTime)
@@ -173,25 +162,6 @@ class MyCombatEnv(gym.Env):
         self.receiveMsg()
         self.secondFrameInfo = self.nowInfo
 
-    def threeFrames(self):
-        # 获得第一帧信息
-        while self.preInfo is None:
-            self.receiveMsg()
-            self.preInfo = self.nowInfo
-        self.sendMsg(self.cur_manu_ctrl)
-        self.firstFrameInfo = self.nowInfo
-        # 获得第二帧信息
-        self.preInfo = None
-        while self.preInfo is None:
-            self.receiveMsg()
-            self.preInfo = self.nowInfo
-        self.sendMsg(self.cur_manu_ctrl)
-        self.secondFrameInfo = self.nowInfo
-        self.secondFrameTime = self.CurTime
-        # 获得第三帧信息
-        self.receiveMsg()
-        self.thirdFrameInfo = self.nowInfo
-
     def sendMsg(self, msg):
         msg_len = len(json.dumps(msg).encode("utf-8"))
         msg_len_data = struct.pack('i', msg_len)
@@ -200,50 +170,37 @@ class MyCombatEnv(gym.Env):
 
     def getStateReward(self):
         if len(self.nowInfo) != 0:
-            if FRAMES_NUM == 3:
-                self.latest_observation, self.latest_reward, self.isDone = self.obsToState.getStateRewardDone(
-                    self.firstFrameInfo, self.secondFrameInfo, self.thirdFrameInfo, self.secondFrameTime)
-            else:
-                self.latest_observation, self.latest_reward, self.isDone = self.obsToState.getStateRewardDoneForTwoFrames(
-                    self.firstFrameInfo, self.secondFrameInfo, self.CurTime)
+            self.latest_observation, self.latest_reward = self.obsToState.getStateRewardDoneForTwoFrames(
+                self.firstFrameInfo, self.secondFrameInfo, self.CurTime)
             self.preInfo = self.nowInfo
             self.PreTime = self.CurTime
             self.pre_msg_type = self.msg_type
-        else:
-            self.isDone = 2
 
     def receiveMsg(self):
-        try:
-            cur_msg = self.Red_client.recv(1024 * 10)
-            self.rcv_msg = self.rcv_msg + cur_msg
-            total_len = len(self.rcv_msg)
-            while total_len > 4:
-                msg_len = int.from_bytes(self.rcv_msg[0:4], byteorder="little", signed=False)
-                if (msg_len + 4 <= total_len):
-                    # 一帧数据
-                    one_frame_msg = self.rcv_msg[4:4 + msg_len]
-                    # 去除一帧后的剩余数据
-                    self.rcv_msg = self.rcv_msg[4 + msg_len: total_len]
-                    total_len = len(self.rcv_msg)
-                    Red_json_str_recv = json.loads(one_frame_msg)
-                    self.msg_type = Red_json_str_recv["msg_type"]
-                    self.CurTime = Red_json_str_recv["msg_time"]
-                    self.nowInfo = Red_json_str_recv["msg_info"]
-                else:
-                    break
-        except socket.timeout:
-            # 处理超时情况
-            print("接收数据超时")
-            self.msg_type = self.pre_msg_type
-            self.CurTime = self.PreTime
-            self.nowInfo = self.preInfo
+        cur_msg = self.Red_client.recv(1024 * 10)
+        self.rcv_msg = self.rcv_msg + cur_msg
+        total_len = len(self.rcv_msg)
+        while total_len > 4:
+            msg_len = int.from_bytes(self.rcv_msg[0:4], byteorder="little", signed=False)
+            if (msg_len + 4 <= total_len):
+                # 一帧数据
+                one_frame_msg = self.rcv_msg[4:4 + msg_len]
+                # 去除一帧后的剩余数据
+                self.rcv_msg = self.rcv_msg[4 + msg_len: total_len]
+                total_len = len(self.rcv_msg)
+                Red_json_str_recv = json.loads(one_frame_msg)
+                self.msg_type = Red_json_str_recv["msg_type"]
+                self.CurTime = Red_json_str_recv["msg_time"]
+                self.nowInfo = Red_json_str_recv["msg_info"]
+            else:
+                break
 
     def close(self):
         self.Red_client.close()
 
     def _get_info(self):
         return {
-            "done": self.isDone,
+            "result": self.result,
         }
 
     def set_isEvaluate(self, flag=False):

@@ -10,21 +10,20 @@ policy_interval=int(2e4)  # (int) – Policy saving interval
 Checkpoint_interval=int(4e5)  # (int) – Checkpoint saving interval
 max_episodes=int(1e5)     # (int) – Maximum number of episodes to run
 
-num_envs = 1   # 环境数量(多进程数量)
+num_envs = 5   # 环境数量(多进程数量)
+
 eval_freq = int(500)  # 训练过程中每隔多少个step进行一次模型评估
 n_eval_episodes = 5   # 训练过程中模型评估时的episode局数
+
+test_episodes = 1000000  # 测试的回合数
+test_timesteps = int(2e8)  # 测试的步数
 
 if num_envs > 1:
     policy_interval = max(policy_interval // num_envs, 1)
     Checkpoint_interval = max(Checkpoint_interval // num_envs, 1)
     eval_freq = max(eval_freq // num_envs, 1)
 
-FRAMES_NUM = 2  # 2 or 3
-
-if FRAMES_NUM == 3:
-    StateDim = (42, )  # 状态维度
-else:
-    StateDim = (48, )  # 状态维度 24*2
+StateDim = (48, )  # 状态维度 24*2
 ActionDim = (4, )   # 动作维度
 
 
@@ -34,33 +33,33 @@ class Params(object):
         # 红方
         if self.role == 'red':
             self.Train = 1  # 0，1，2分别表示：0重新训练，1加载之前的训练，2测试模式
-            self.test_episodes = 1000  # 测试的回合数
-            self.test_timesteps = 100000  # 测试的步数
-        # 蓝方
-        else:
-            self.Train = 2
-            self.test_episodes = 1000  # 测试的回合数
-            self.test_timesteps = 100000  # 测试的步数
+            # 文件夹相关路径处理
+            save_date = '2023_08/2023_08_22'
+            load_date = '2023_08/2023_08_21'
+            flag_use_checkpoints = False
+            self.load_steps = 20800000
+            model_name = "sac_model_" + str(self.load_steps) + "_steps.zip"
 
-        # 文件夹相关路径处理
-        save_date = '2023_08/2023_08_13'
-        load_date = '2023_08/2023_08_13'
-        flag_use_checkpoints = False
-        self.load_steps = 20800000
-        model_name = "sac_model_"+str(self.load_steps)+"_steps.zip"
-        # Red
-        if role == 'red':
-            self.Save_ModelDir_Red = "./models/Red/"+save_date
+            self.Save_ModelDir_Red = "./models/Red/" + save_date
             self.Load_ModelDir_Red = "./models/Red/" + load_date
-            self.LogDir_Red = "./logs/Red/"+save_date
+            self.LogDir_Red = "./logs/Red/" + save_date
             saveDir = self.Save_ModelDir_Red
             loadDir = self.Load_ModelDir_Red
             logDir = self.LogDir_Red
+
+        # 蓝方
         else:
-        # Blue
-            self.Save_ModelDir_Blue = "./models/Blue/"+save_date
-            self.Load_ModelDir_Blue = "./models/Blue/"+load_date
-            self.LogDir_Blue = "./logs/Blue/"+save_date
+            self.Train = 2
+            # 文件夹相关路径处理
+            save_date = '2023_08/2023_08_13'
+            load_date = '2023_08/2023_08_21'
+            flag_use_checkpoints = False
+            self.load_steps = 20800000
+            model_name = "sac_model_" + str(self.load_steps) + "_steps.zip"
+
+            self.Save_ModelDir_Blue = "./models/Blue/" + save_date
+            self.Load_ModelDir_Blue = "./models/Red/" + load_date
+            self.LogDir_Blue = "./logs/Blue/" + save_date
             saveDir = self.Save_ModelDir_Blue
             loadDir = self.Load_ModelDir_Blue
             logDir = self.LogDir_Blue
@@ -90,6 +89,11 @@ class Params(object):
             os.makedirs(self.evalDir)
         if not os.path.exists(self.loadModelDir) and self.Train != 0:
             print("加载模型路径错误！ 路径：" + self.loadModelDir)
+
+
+
+
+
 
 
 
