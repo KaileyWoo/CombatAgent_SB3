@@ -10,12 +10,12 @@ policy_interval=int(2e4)  # (int) – Policy saving interval
 Checkpoint_interval=int(4e5)  # (int) – Checkpoint saving interval
 max_episodes=int(1e5)     # (int) – Maximum number of episodes to run
 
-num_envs = 5   # 环境数量(多进程数量)
+num_envs = 1   # 环境数量(多进程数量)
 
 eval_freq = int(500)  # 训练过程中每隔多少个step进行一次模型评估
 n_eval_episodes = 5   # 训练过程中模型评估时的episode局数
 
-test_episodes = 1000000  # 测试的回合数
+test_episodes = 500  # 测试的回合数
 test_timesteps = int(2e8)  # 测试的步数
 
 if num_envs > 1:
@@ -32,10 +32,10 @@ class Params(object):
         self.role = role
         # 红方
         if self.role == 'red':
-            self.Train = 1  # 0，1，2分别表示：0重新训练，1加载之前的训练，2测试模式
+            self.Train = 2  # 0，1，2分别表示：0重新训练，1加载之前的训练，2测试模式
             # 文件夹相关路径处理
             save_date = '2023_08/2023_08_22'
-            load_date = '2023_08/2023_08_21'
+            load_date = '2023_08/2023_08_09'
             flag_use_checkpoints = False
             self.load_steps = 20800000
             model_name = "sac_model_" + str(self.load_steps) + "_steps.zip"
@@ -52,7 +52,7 @@ class Params(object):
             self.Train = 2
             # 文件夹相关路径处理
             save_date = '2023_08/2023_08_13'
-            load_date = '2023_08/2023_08_21'
+            load_date = '2023_08/2023_08_09'
             flag_use_checkpoints = False
             self.load_steps = 20800000
             model_name = "sac_model_" + str(self.load_steps) + "_steps.zip"

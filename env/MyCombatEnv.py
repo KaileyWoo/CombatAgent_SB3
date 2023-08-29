@@ -15,6 +15,7 @@ class MyCombatEnv(gym.Env):
         self.role = role
         self.id = role_id
         self.env_id = env_id
+        self.detectedId = '1002'
 
         # 使用连续动作空间
         self.action_space = gym.spaces.Box(low=-1, high=1, shape=ActionDim, dtype=np.float32)
@@ -33,9 +34,7 @@ class MyCombatEnv(gym.Env):
             "msg_type": "identify",
             "msg_info": {
                 "identify": "red"}}
-        self.manu_ctrl_launch = {
-            "msg_info": "发射, 1001, 2, 0, Delay, Force, 0 | 1002",
-            "msg_type": "manu_ctrl"}
+        self.manu_ctrl_launch = self.generate_manu_ctrl_launch_msg()
         self.cur_manu_ctrl = self.generate_manu_ctrl_msg()
         self.Red_identify_dict["msg_info"]["identify"] = self.role
 
@@ -57,6 +56,7 @@ class MyCombatEnv(gym.Env):
         self.obsToState = ObsToState(self.env_id, 8868+env_id)
         self.isEvaluate = False
         self.num_eval = 0
+        self.isDone = 0
         self.result = 0
         # 初始化环境交互类信息
         self.sendMsg(self.Red_identify_dict)
@@ -64,6 +64,15 @@ class MyCombatEnv(gym.Env):
 
     def generate_manu_ctrl_msg(self):
         msg_info = [f"驾驶操控,{self.id},2,0,Delay,Force,0|0`0`0.6`0"]
+        return {
+            "msg_info": msg_info,
+            "msg_type": "manu_ctrl",
+            "done": 0
+        }
+
+
+    def generate_manu_ctrl_launch_msg(self):
+        msg_info = [f"驾驶操控,{self.id},2,0,Delay,Force,0|0`0`0.6`0", f"发射,{self.id},2,0,Delay,Force,0|{self.detectedId}"]
         return {
             "msg_info": msg_info,
             "msg_type": "manu_ctrl",
@@ -81,7 +90,7 @@ class MyCombatEnv(gym.Env):
         truncated = False
         # 发送动作指令
         self.cur_manu_ctrl = RongAoUtils.moveRL(self.cur_manu_ctrl, self.id, action[0], action[1], action[2], action[3])
-        #self.cur_manu_ctrl["done"] = self.isDone  # 结束标志
+        self.cur_manu_ctrl["done"] = self.isDone  # 结束标志
         self.sendMsg(self.cur_manu_ctrl)
 
         # 更新数据信息,接收环境信息
@@ -97,6 +106,11 @@ class MyCombatEnv(gym.Env):
             self.getStateReward()
             observation = self.latest_observation
             reward = self.latest_reward
+            if self.isDone != 0:
+                self.cur_manu_ctrl["done"] = self.isDone  # 结束标志
+                self.sendMsg(self.cur_manu_ctrl)
+                # self.sendMsg(self.manu_ctrl_launch)
+                # terminated = True
         else:
             print("接收到不明信息!")
             truncated = True
@@ -137,6 +151,7 @@ class MyCombatEnv(gym.Env):
         self.latest_observation = np.zeros(StateDim, dtype=np.float32)
         self.latest_reward = 0
         self.potential_reward = 0
+        self.isDone = 0
         self.result = 0
         observation = np.zeros(StateDim, dtype=np.float32)
         info = {}
@@ -170,11 +185,13 @@ class MyCombatEnv(gym.Env):
 
     def getStateReward(self):
         if len(self.nowInfo) != 0:
-            self.latest_observation, self.latest_reward = self.obsToState.getStateRewardDoneForTwoFrames(
+            self.latest_observation, self.latest_reward, self.isDone = self.obsToState.getStateRewardDoneForTwoFrames(
                 self.firstFrameInfo, self.secondFrameInfo, self.CurTime)
             self.preInfo = self.nowInfo
             self.PreTime = self.CurTime
             self.pre_msg_type = self.msg_type
+        else:
+            self.isDone = 2
 
     def receiveMsg(self):
         cur_msg = self.Red_client.recv(1024 * 10)
@@ -200,6 +217,7 @@ class MyCombatEnv(gym.Env):
 
     def _get_info(self):
         return {
+            "done": self.isDone,
             "result": self.result,
         }
 
