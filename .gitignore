@@ -1,4 +1,8 @@
-logs/Red/**
-logs/Blue/**
-models/Red/**
-models/Blue/**
+/Main.spec
+/.idea
+/save_logs/
+/save_models/
+/dist/
+/build/
+/output/
+/新建文本文档.txt
