@@ -14,7 +14,7 @@ StateDim = (48, )  # 状态维度 24*2
 ActionDim = (4, )   # 动作维度
 
 class Params(object):
-    def __init__(self, role='red', num_envs=1, test_episodes=500, load_model=""):
+    def __init__(self, role='red', num_envs=1, test_episodes=500, load_model="", test_monitor_dir=""):
         self.role = role
         self.test_episodes = test_episodes
         self.policy_interval=int(2e4)  # (int) – Policy saving interval
@@ -42,13 +42,7 @@ class Params(object):
         self.monitorDir = logDir + save_date + '/sac_monitor/'
         self.evalDir =logDir + save_date + '/sac_eval/'
 
-        flag_use_checkpoints = False
-        if flag_use_checkpoints:
-            load_steps = 20800000
-            model_name = "sac_model_" + str(load_steps) + "_steps.zip"
-            self.loadModelDir = loadDir + load_date + "/sac_checkpoints/" + model_name
-        else:
-            self.loadModelDir = loadDir + load_date + "/sac_save_model/"
+        self.loadModelDir = loadDir + load_date + "/sac_save_model/"
 
         if self.Train < 2:
             if not path.exists(self.CheckpointDir):
@@ -69,8 +63,11 @@ class Params(object):
                 print("错误！加载模型路径错误，路径：" + self.loadModelDir + "models.zip")
                 self.load_success = False
         else:
-            self.loadModelDir = load_model  #测试模式从文件读取路径
+            self.test_monitor_dir = test_monitor_dir
+            if not path.exists(self.test_monitor_dir):
+                makedirs(self.test_monitor_dir)
 
+            self.loadModelDir = load_model  # 测试模式从文件读取路径
             self.load_success = True
             if not path.exists(self.loadModelDir) and self.Train != 0:
                 print("错误！加载模型路径错误，路径：" + self.loadModelDir)
