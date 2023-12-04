@@ -1,5 +1,5 @@
 import math
-from numpy import concatenate, array, float32
+import numpy as np
 from need.utils.RongAoUtils import RongAoUtils
 from need.models.params import StateDim
 
@@ -21,46 +21,54 @@ class ObsToState:
         self.PreDetectedInfo = None
         self.WEZ_Min = 200
         self.WEZ_Max = 1000
-        self.Distance_Max = 10000
+        self.Distance_Max = 50000
         self.ALT_Min = 1000
         self.ALT_Max = 10000
-        self.TIME_Max = 300
+        self.TIME_Max = 299
         self.TotalReward = 0
-        self.episode = 0
+        self.Dete_Alt_Valid = True
+        self.episode = 1
 
 
     def proTerminal(self, result, role):
-        self.episode += 1
         if result == 1:
             terminalStr = "红方 获胜！"
         elif result == 2:
             terminalStr = "蓝方 获胜！"
-        else:
+        elif result == 3:
             terminalStr = "对局时间到！"
+        else:
+            terminalStr = "其他原因导致对局结束！"
         terminalStr = f"【第{self.env_id}组】【port={self.port}】【第 {self.episode} 局结束】****** {terminalStr} ******"
         if role == "red" and result == 1 or role == "blue" and result == 2:
             tReward = 50
-            print(terminalStr + f"【 时间: {self.CurTime:.1f}s，总奖励：{self.TotalReward+tReward:.6f} 】--------------------------------------目标达成！")
+            #print(terminalStr + f"【 时间: {self.CurTime:.1f}s，总奖励：{self.TotalReward+tReward:.6f} 】--------------------------------------目标达成！")
         else:
             tReward = -50
-            print(terminalStr + f"【 时间: {self.CurTime:.1f}s，总奖励：{self.TotalReward+tReward:.6f} 】")
-        reward = tReward + self.TotalReward
+            #print(terminalStr + f"【 时间: {self.CurTime:.1f}s，总奖励：{self.TotalReward+tReward:.6f} 】")
+        reward = self.TotalReward
         self.TotalReward = 0
         self.CurTotalReward = 0
+        self.episode += 1
         return reward
 
 
     def getState(self, first_info, second_info, time):
         self.CurTime = time
+        STATE = np.zeros(StateDim, dtype=np.float32)
         # 解析第1帧数据
         self.PreSelfTrack, self.PreDetectedInfo = self.parseOneFrameData(first_info)
         # 解析第2帧数据
         self.CurSelfTrack, self.CurDetectedInfo = self.parseOneFrameData(second_info)
+        if not self.CurSelfTrack:
+            return 2, STATE
+        if not self.CurDetectedInfo:
+            return 1, STATE
         # 状态向量
         first_state = self.getStateVector(self.PreSelfTrack, self.PreDetectedInfo)
         second_stata = self.getStateVector(self.CurSelfTrack, self.CurDetectedInfo)
-        STATE = concatenate((first_state, second_stata)).reshape(StateDim).astype(float32)
-        return STATE
+        STATE = np.concatenate((first_state, second_stata)).reshape(StateDim).astype(np.float32)
+        return 0, STATE
 
 
     def getStateRewardDoneForTwoFrames(self, first_info, second_info, time):
@@ -69,24 +77,28 @@ class ObsToState:
         """
         self.isDone = 0
 
-        STATE = self.getState(first_info, second_info, time)
+        flag_, state = self.getState(first_info, second_info, time)
+        if flag_ != 0:
+            return flag_, state, None, 2
 
         # 计算奖励
         self.CurTotalReward = self.getStepReward(self.PreSelfTrack, self.CurSelfTrack, self.PreDetectedInfo, self.CurDetectedInfo)
-        self.is_done(self.CurSelfTrack)
+        self.is_done(self.CurSelfTrack, self.CurDetectedInfo)
 
-        self.isDone = 0    # test
-        return STATE, self.CurTotalReward, self.isDone
+        #self.isDone = 0
+        return flag_, state, self.CurTotalReward, self.isDone, self.Dete_Alt_Valid
 
         # 判断是否结束
 
-    def is_done(self, self_track):
-        terminal_reward = (1 - (math.fabs(self.CurAttackAngle) / math.pi + math.fabs(self.CurEscapeAngle) / math.pi)) * \
-                          math.exp(-0.0005 * math.fabs(self.CurDistance - self.WEZ_Min))
-        test = True
+    def is_done(self, self_track, dete_info):
+        # terminal_reward = (1 - (math.fabs(self.CurAttackAngle) / math.pi + math.fabs(self.CurEscapeAngle) / math.pi)) * \
+        #                   math.exp(-0.0005 * math.fabs(self.CurDistance - self.WEZ_Min))
+        # terminal_reward = (math.fabs(self.CurAttackAngle) / math.pi) * math.exp(-0.0005 * math.fabs(self.CurDistance - self.WEZ_Min))
+
+        train = True
         if self.CurDistance > self.Distance_Max:
             self.isDone = 2
-            if test:
+            if train:
                 Reward = -50 + math.tanh(-math.fabs(self.CurAttackAngle) / math.pi)
                 self.CurTotalReward = Reward
                 self.TotalReward += self.CurTotalReward
@@ -95,7 +107,7 @@ class ObsToState:
                 print(str_)
         elif self_track['Altitude'] > self.ALT_Max or self_track['Altitude'] < self.ALT_Min:
             self.isDone = 2
-            if test:
+            if train:
                 Reward = -50 + math.tanh((self.WEZ_Max - self.CurDistance) / self.Distance_Max)
                 self.CurTotalReward = Reward
                 self.TotalReward += self.CurTotalReward
@@ -104,7 +116,7 @@ class ObsToState:
                 print(str_)
         elif self.CurTime >= self.TIME_Max:
             self.isDone = 3
-            if test:
+            if train:
                 Reward = -50 + 0.8 * math.tanh((self.WEZ_Max - self.CurDistance) / self.Distance_Max) + 0.2 * math.tanh(
                     -math.fabs(self.CurAttackAngle) / math.pi)
                 self.CurTotalReward = Reward
@@ -113,28 +125,36 @@ class ObsToState:
                 str_ = f"【第{self.env_id}组】【port={self.port}】第 {self.episode} 局结束！---时间---越界，时间：{self.CurTime:.1f}s，总奖励：{self.TotalReward:.6f}，距离：{self.CurDistance:.2f}m，" \
                        f"高度：{self_track['Altitude']:.2f}m，攻击角：{self.CurAttackAngle * 180 / math.pi:.2f}，逃逸角：{self.CurEscapeAngle * 180 / math.pi:.2f}"
                 print(str_)
-        # elif math.fabs(self.CurAttackAngle) < math.pi / 3 and self.CurDistance < self.WEZ_Max:
-        elif terminal_reward > 0.6 and self.CurDistance < self.WEZ_Max:
-            self.isDone = 0
-            if test:
-                Reward = 50 + 0.5 * math.exp(-self.CurTime / self.TIME_Max) + 0.5 * terminal_reward
+        elif math.fabs(self.CurAttackAngle) < math.pi / 6 and self.CurDistance < self.WEZ_Max:
+        # elif terminal_reward > 0.6:
+            self.isDone = 1
+            if train:
+                #Reward = 50 + 0.5 * math.exp(-self.CurTime / self.TIME_Max) + 0.5 * terminal_reward
+                Reward = 50 + 0.8*math.exp(-self.CurTime / self.TIME_Max) + 0.2*math.exp(-(math.fabs(self.CurEscapeAngle))/math.pi)
                 self.CurTotalReward = Reward
                 self.TotalReward += self.CurTotalReward
                 print(
                     "--------------------------------------------------------目标达成！---------------------------------------------------------------------")
-                str_ = f"【第{self.env_id}组】【port={self.port}】第 {self.episode} 局结束！时间: {self.CurTime:.1f}s，总奖励：{self.TotalReward:.6f}，终局奖励：{terminal_reward:.6f}，" \
+                # str_ = f"【第{self.env_id}组】【port={self.port}】第 {self.episode} 局结束！时间: {self.CurTime:.1f}s，总奖励：{self.TotalReward:.6f}，终局奖励：{terminal_reward:.6f}，" \
+                #        f"距离：{self.CurDistance:.2f}m，高度：{self_track['Altitude']:.2f}m，攻击角：{self.CurAttackAngle * 180 / math.pi:.2f}，逃逸角：{self.CurEscapeAngle * 180 / math.pi:.2f}"
+                str_ = f"【第{self.env_id}组】【port={self.port}】第 {self.episode} 局结束！时间: {self.CurTime:.1f}s，总奖励：{self.TotalReward:.6f}，" \
                        f"距离：{self.CurDistance:.2f}m，高度：{self_track['Altitude']:.2f}m，攻击角：{self.CurAttackAngle * 180 / math.pi:.2f}，逃逸角：{self.CurEscapeAngle * 180 / math.pi:.2f}"
                 print(str_)
 
-        if test:
+        if train:
             if self.isDone != 0:
                 self.TotalReward = 0
-                self.episode += 1
+                # self.episode += 1
             else:
                 self.TotalReward += self.CurTotalReward
         else:
             self.TotalReward += self.CurTotalReward
 
+        # 判断敌机高度，用于机动判断
+        if dete_info['Altitude'] > self.ALT_Max or dete_info['Altitude'] < self.ALT_Min:
+            self.Dete_Alt_Valid = False
+        else:
+            self.Dete_Alt_Valid = True
 
     # 计算单步奖励
     def getStepReward(self, first_self_track, second_self_track, first_DetectedInfo, second_DetectedInfo):
@@ -190,15 +210,15 @@ class ObsToState:
         # 其他参数
         self_alpha = self_info['alpha'] / (2 * math.pi)    # 迎角/攻角
         self_beta = self_info['beta'] / (2 * math.pi)      # 侧滑角/滑移角
-        self_p = self_info['p'] / math.pi  # 滚转角速度(弧度每秒)
+        self_p = self_info['p'] / (2 * math.pi)  # 滚转角速度(弧度每秒)
         self_q = self_info['q'] / math.pi  # 俯仰角速度(弧度每秒)
         self_r = self_info['r'] / math.pi  # 侧滑角速度(弧度每秒)
 
         # 状态向量
-        state = array([distance/self.Distance_Max, self_attackAngle/math.pi, target_escapeAngle/math.pi, self_alt, dete_alt,
+        state = np.array([distance/self.Distance_Max, self_attackAngle/math.pi, target_escapeAngle/math.pi, self_alt, dete_alt,
                           self_v_real, dete_v_real, self_v_n, self_v_e, self_v_d, self_a_x, self_a_y, self_a_z,
                           self_heading, self_pitch, self_roll, dete_heading, dete_pitch, dete_roll,
-                          self_alpha, self_beta, self_p, self_q, self_r],dtype=float32)
+                          self_alpha, self_beta, self_p, self_q, self_r],dtype=np.float32)
 
         return state
 

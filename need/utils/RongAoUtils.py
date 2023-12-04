@@ -82,6 +82,11 @@ class RongAoUtils:
 
         return action
 
+    def moveRLForLunch(action, id, detectedId, x_pos, y_pos, r_pos, z_pos):
+        action["msg_info"] = ["驾驶操控,"+str(id)+",2,0,Delay,Force,0|"+str(x_pos)+"`"+str(y_pos)+"`"+str(r_pos)+"`"+str(z_pos),
+                              "发射,"+str(id)+",2,0,Delay,Force,0|"+str(detectedId)]
+        return action
+
 
     # 普通机动动作，真实的nx，ny，rolling
     @staticmethod

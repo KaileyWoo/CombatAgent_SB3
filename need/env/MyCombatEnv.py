@@ -10,12 +10,15 @@ from need.utils.RongAoUtils import RongAoUtils
 
 # 定义环境类
 class MyCombatEnv(Env):
-    def __init__(self, role='red', role_id='1001', env_id=0, host='127.0.0.1', port=8868, render_mode=None):
+    def __init__(self, config_dic={}, env_id=0, render_mode=None):
         super().__init__()
-        self.role = role
-        self.id = role_id
+        self.role = config_dic["role"]
+        self.id = config_dic["role_id"]
+        self.host = config_dic["host"]
+        self.port = config_dic["port"]+env_id
+        self.is_lunch = config_dic["is_lunch"]
         self.env_id = env_id
-        self.detectedId = '1002'
+        self.detectedId = '2001'
 
         # 使用连续动作空间
         self.action_space = spaces.Box(low=-1, high=1, shape=ActionDim, dtype=float32)
@@ -28,8 +31,8 @@ class MyCombatEnv(Env):
         # 创建仿真链接，初始化环境交互类信息
         # 端口连接
         self.Red_client = socket(AF_INET, SOCK_STREAM)
-        self.Red_client.connect((host, port+env_id))
-        print(f"连接服务器：host={host} port={port+env_id}")
+        self.Red_client.connect((self.host, self.port))
+        print(f"连接服务器：host={self.host} port={self.port}")
 
         self.Red_identify_dict = {
             "msg_type": "identify",
@@ -59,6 +62,9 @@ class MyCombatEnv(Env):
         self.num_eval = 0
         self.isDone = 0
         self.result = 0
+        self.lunch_time = 0
+        self.detected_none = False
+        self.dete_alt_valid = True
         # 初始化环境交互类信息
         self.sendMsg(self.Red_identify_dict)
 
@@ -90,27 +96,42 @@ class MyCombatEnv(Env):
         terminated = False
         truncated = False
         # 发送动作指令
-        self.cur_manu_ctrl = RongAoUtils.moveRL(self.cur_manu_ctrl, self.id, action[0], action[1], action[2], action[3])
+        if self.detected_none or not self.dete_alt_valid:
+                self.cur_manu_ctrl = RongAoUtils.moveRL(self.cur_manu_ctrl, self.id, 0, 0, 0.6, 0)
+        else:
+            self.cur_manu_ctrl = RongAoUtils.moveRL(self.cur_manu_ctrl, self.id, action[0], action[1], action[2], action[3])
         self.cur_manu_ctrl["done"] = self.isDone  # 结束标志
         self.sendMsg(self.cur_manu_ctrl)
 
         # 更新数据信息,接收环境信息
-        self.receiveMsg()
+        # 获得一帧信息
+        flag1 = False
+        while not flag1:
+            flag1 = self.receiveMsg()
+            if not flag1:
+                self.sendMsg(self.cur_manu_ctrl)
+
         self.firstFrameInfo = self.secondFrameInfo
         self.secondFrameInfo = self.nowInfo
         if self.msg_type == "result":
             self.result = self.nowInfo["result"]
-            reward = self.obsToState.proTerminal(self.result, self.role)
-            observation = self.latest_observation
-            terminated = True
+            if self.result != 0:
+                reward = self.obsToState.proTerminal(self.result, self.role)
+                observation = self.latest_observation
+                terminated = True
         elif self.role == "red" and self.msg_type == "red_out_put" or self.role == "blue" and self.msg_type == "blue_out_put":
             self.getStateReward()
             observation = self.latest_observation
             reward = self.latest_reward
-            # if self.isDone != 0:
+            # if self.isDone == 1:
+            #     self.isDone = 0
                 # self.cur_manu_ctrl["done"] = self.isDone  # 结束标志
                 # self.sendMsg(self.cur_manu_ctrl)
-                # self.sendMsg(self.manu_ctrl_launch)
+                # temp_time = self.CurTime - self.lunch_time
+                # if self.is_lunch and (temp_time >= 10 or self.lunch_time <= 10) and not self.detected_none:
+                #     self.lunch_time = self.CurTime
+                #     self.manu_ctrl_launch = RongAoUtils.moveRLForLunch(self.cur_manu_ctrl, self.id, self.detectedId, action[0], action[1], action[2], action[3])
+                #     self.sendMsg(self.manu_ctrl_launch)
                 # terminated = True
         else:
             print("接收到不明信息!")
@@ -154,28 +175,53 @@ class MyCombatEnv(Env):
         self.potential_reward = 0
         self.isDone = 0
         self.result = 0
+        self.lunch_time = 0
+        self.detected_none = False
+        self.dete_alt_valid = True
         observation = zeros(StateDim, dtype=float32)
         info = {}
+        flag_ = 0
         self.towFrames()
         if self.role == "red" and self.msg_type == "red_out_put" or self.role == "blue" and self.msg_type == "blue_out_put":
             if len(self.nowInfo) != 0:
-                self.latest_observation = self.obsToState.getState(self.firstFrameInfo, self.secondFrameInfo, self.CurTime)
-                self.preInfo = self.nowInfo
-                self.PreTime = self.CurTime
-                self.pre_msg_type = self.msg_type
-                observation = self.latest_observation
+                flag_, state = self.obsToState.getState(self.firstFrameInfo, self.secondFrameInfo, self.CurTime)
+                if flag_ != 2:
+                    if flag_ == 1:
+                        self.detected_none = True
+                    else:
+                        self.detected_none = False
+                    self.latest_observation = state
+                    self.preInfo = self.nowInfo
+                    self.PreTime = self.CurTime
+                    self.pre_msg_type = self.msg_type
+                    observation = self.latest_observation
         info = self._get_info()
         return observation, info
 
     def towFrames(self):
         # 获得第一帧信息
-        while self.preInfo is None:
-            self.receiveMsg()
-            self.preInfo = self.nowInfo
-        self.sendMsg(self.cur_manu_ctrl)
+        flag1 = False
+        flag1_ = False
+        while not flag1 or not flag1_:
+            flag1 = self.receiveMsg()
+            if flag1:
+                if self.msg_type == "red_out_put" or self.msg_type == "blue_out_put":
+                    flag1_ = True
+                else:
+                    self.sendMsg(self.cur_manu_ctrl)
         self.firstFrameInfo = self.nowInfo
         # 获得第二帧信息
-        self.receiveMsg()
+        self.sendMsg(self.cur_manu_ctrl)
+        flag1 = False
+        flag1_ = False
+        while not flag1 or not flag1_:
+            flag1 = self.receiveMsg()
+            if flag1:
+                if self.msg_type == "red_out_put" or self.msg_type == "blue_out_put":
+                    flag1_ = True
+                else:
+                    self.sendMsg(self.cur_manu_ctrl)
+        self.preInfo = self.nowInfo
         self.secondFrameInfo = self.nowInfo
 
     def sendMsg(self, msg):
@@ -186,13 +232,19 @@ class MyCombatEnv(Env):
 
     def getStateReward(self):
         if len(self.nowInfo) != 0:
-            self.latest_observation, self.latest_reward, self.isDone = self.obsToState.getStateRewardDoneForTwoFrames(
-                self.firstFrameInfo, self.secondFrameInfo, self.CurTime)
-            self.preInfo = self.nowInfo
-            self.PreTime = self.CurTime
-            self.pre_msg_type = self.msg_type
-        else:
-            self.isDone = 2
+            flag_, state_, reward_, done_, self.dete_alt_valid = self.obsToState.getStateRewardDoneForTwoFrames(self.firstFrameInfo, self.secondFrameInfo, self.CurTime)
+            if flag_ != 2:
+                if flag_ == 1:
+                    self.detected_none = True
+                else:
+                    self.detected_none = False
+                self.latest_observation = state_
+                self.latest_reward = reward_
+                self.isDone = done_
+                self.preInfo = self.nowInfo
+                self.PreTime = self.CurTime
+                self.pre_msg_type = self.msg_type
+
 
     def receiveMsg(self):
         cur_msg = self.Red_client.recv(1024 * 10)
@@ -207,9 +259,14 @@ class MyCombatEnv(Env):
                 self.rcv_msg = self.rcv_msg[4 + msg_len: total_len]
                 total_len = len(self.rcv_msg)
                 Red_json_str_recv = loads(one_frame_msg)
-                self.msg_type = Red_json_str_recv["msg_type"]
-                self.CurTime = Red_json_str_recv["msg_time"]
-                self.nowInfo = Red_json_str_recv["msg_info"]
+                nowinfo = Red_json_str_recv["msg_info"]
+                if len(nowinfo) != 0:
+                    self.nowInfo = nowinfo
+                    self.msg_type = Red_json_str_recv["msg_type"]
+                    self.CurTime = Red_json_str_recv["msg_time"]
+                    return True
+                else:
+                    return False
             else:
                 break
 

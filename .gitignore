@@ -1,8 +1,8 @@
 /Main.spec
-/.idea
+/__pycache__/
+/.idea/
 /save_logs/
 /save_models/
 /dist/
 /build/
 /output/
-/新建文本文档.txt
