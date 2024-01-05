@@ -28,8 +28,8 @@ class Params(object):
 
         self.Train = 2  # 0，1，2分别表示：0重新训练，1加载之前的训练，2测试模式, 3估计策略
         # 文件夹相关路径处理
-        save_date = '2023_12/2023_12_02_3000'
-        load_date = '2023_12/2023_12_01'
+        save_date = '2023_12/2023_12_18'
+        load_date = '2023_08/2023_08_21'
         saveDir = "./save_models/Red/"
         loadDir = "./save_models/Red/"
         logDir = "./save_logs/Red/"

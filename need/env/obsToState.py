@@ -85,7 +85,7 @@ class ObsToState:
         self.CurTotalReward = self.getStepReward(self.PreSelfTrack, self.CurSelfTrack, self.PreDetectedInfo, self.CurDetectedInfo)
         self.is_done(self.CurSelfTrack, self.CurDetectedInfo)
 
-        #self.isDone = 0
+        # self.isDone = 0
         return flag_, state, self.CurTotalReward, self.isDone, self.Dete_Alt_Valid
 
         # 判断是否结束

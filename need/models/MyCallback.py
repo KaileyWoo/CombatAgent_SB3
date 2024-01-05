@@ -9,7 +9,7 @@ class MyCallback(BaseCallback):
     A custom callback that derives from ``BaseCallback``.
     :param verbose: Verbosity level: 0 for no output, 1 for info messages, 2 for debug messages
     """
-    def __init__(self, policy_interval=0, save_dir="", best_save_dir="", monitor_dir="", load_dir="", eval_freq=10000, verbose=0):
+    def __init__(self, policy_interval=0, save_dir="", best_save_dir="", monitor_dir="", load_dir="", eval_freq=10000, train_flag=0, verbose=0):
         super(MyCallback, self).__init__(verbose)
 
         self.policy_interval = policy_interval
@@ -18,6 +18,7 @@ class MyCallback(BaseCallback):
         self.monitor_dir = monitor_dir
         self.loadDir = load_dir
         self.eval_freq = eval_freq
+        self.train_flag = train_flag
         self.best_mean_reward = -np.inf
 
         # 创建 ConfigParser 对象
@@ -30,13 +31,14 @@ class MyCallback(BaseCallback):
         This method is called before the first rollout starts.
         """
 
-        # 读取配置文件
-        # config = configparser.ConfigParser()
-        # result = config.read(self.loadDir + 'parameters.ini')
-        # if result:
-        #     self.model.num_timesteps = int(config.get('parameters', 'num_timesteps'))   # 获取 num_timesteps
-        # 加载回放缓冲区
-        self.model.load_replay_buffer(self.loadDir + "replay_buffer.pkl")
+        if self.train_flag == 1:
+            # 读取配置文件
+            # config = configparser.ConfigParser()
+            # result = config.read(self.loadDir + 'parameters.ini')
+            # if result:
+            #     self.model.num_timesteps = int(config.get('parameters', 'num_timesteps'))   # 获取 num_timesteps
+            # 加载回放缓冲区
+            self.model.load_replay_buffer(self.loadDir + "replay_buffer.pkl")
 
         pass
 

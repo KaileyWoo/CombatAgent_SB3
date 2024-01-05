@@ -30,7 +30,7 @@ def CustomMain(config):
     config_dict["role"] = str(config.get('database', 'role'))
     config_dict["role_id"] = str(config.get('database', 'role_id'))
     #num_envs = int(config.get('database', 'num_envs'))
-    num_envs = 10
+    num_envs = 1
     load_model = str(config.get('database', 'load_model'))
     monitor_dir = str(config.get('database', 'monitor_dir'))
     episodes = int(config.get('database', 'episodes'))
@@ -68,7 +68,7 @@ def CustomMain(config):
         #                                           save_replay_buffer=True, save_vecnormalize=False)
         # 自定义回调函数（1.定时保存策略；2.若需训练过程中进行模型评估，则设置环境的评估模式标志位）
         my_callback = MyCallback(policy_interval=params.policy_interval, save_dir=params.modelDir, best_save_dir=params.bestModelDir,
-                                 monitor_dir=params.monitorDir, load_dir=params.loadModelDir, eval_freq=0)
+                                 monitor_dir=params.monitorDir, load_dir=params.loadModelDir, train_flag=params.Train, eval_freq=0)
         # 在训练过程中进行模型性能评估
         eval_callback = EvalCallback(combatEnv, best_model_save_path=params.bestModelDir, log_path=params.evalDir, n_eval_episodes=params.n_eval_episodes,
                                       eval_freq=params.eval_freq, deterministic=True, verbose=0)
